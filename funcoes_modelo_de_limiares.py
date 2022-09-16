@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random as rd
 
+#trocar arrays para sets
+
 ######################################################################################################################################################################################
 
 """
@@ -18,18 +20,25 @@ class Sistema:
         self.place1 = agentes1
         
     def migrate(self, placeA, i):
+        a = False
         if placeA == 0:
             agente = self.place0[i]
             self.place0 = np.delete(self.place0, i)
             self.place0_size -= 1
             self.place1 = np.append(self.place1, agente)
             self.place1_size += 1
+            if agente.state == 1:
+                a = True
         else:
             agente = self.place1[i]
             self.place1 = np.delete(self.place1, i)
             self.place1_size -= 1
             self.place0 = np.append(self.place0, agente)
             self.place0_size += 1
+            if agente.state == 1:
+                a = True
+            
+        return a
             
             
 ######################################################################################################################################################################################
@@ -352,7 +361,7 @@ def simula_greve_setores_migracao(N, sistema, passos = 50, probabilidade_de_migr
         
         prob = float(rd.random())
         
-        if float(prob) <= probabilidade_de_migracao:
+        if prob <= probabilidade_de_migracao:
             migracao += 1
             setor = rd.randint(0,1)
             if setor == 0:
@@ -361,6 +370,136 @@ def simula_greve_setores_migracao(N, sistema, passos = 50, probabilidade_de_migr
                 num_agente = rd.randint(0,sistema.place1_size-1)
             
             sistema.migrate(setor, num_agente)
+    print(migracao)
+            
+    return [progressao, tamanho_da_greve]
+
+
+######################################################################################################################################################################################
+
+
+def simula_greve_setores_migracao_individual(N, sistema, passos = 50, probabilidade_de_migracao_individual = 0.01):
+    
+    tamanho_da_greve = np.array([0,0])
+    progressao = np.zeros((2,passos))              # array que acumula a evolução temporal da greve
+    aux0 = 0
+    aux1 = 0
+    migracao = 0
+    
+    for i in range(passos):
+        j = 0
+        while j < sistema.place0_size:
+            sistema.place0[j].update_state(tamanho_da_greve[0]/sistema.place0_size)
+            if sistema.place0[j].state == 1:
+                aux0 += 1
+
+            prob = float(rd.random())
+
+            if prob <= probabilidade_de_migracao_individual:
+                migracao += 1
+                a = sistema.migrate(0, j)
+                if a:
+                    tamanho_da_greve[0] -= 1
+                j -= 1
+
+            j += 1
+
+        j = 0        
+        while j < sistema.place1_size:    
+            
+            sistema.place1[j].update_state(tamanho_da_greve[1]/sistema.place1_size)
+            if sistema.place1[j].state == 1:
+                aux1 += 1
+                
+            prob = float(rd.random())
+
+            if prob <= probabilidade_de_migracao_individual:
+                migracao += 1
+                a = sistema.migrate(1, j)
+                if a:
+                    tamanho_da_greve[1] -= 1
+                j -= 1
+            
+            j += 1
+                
+                
+        tamanho_da_greve[0] = aux0
+        tamanho_da_greve[1] = aux1
+        progressao[0][i] = tamanho_da_greve[0]
+        progressao[1][i] = tamanho_da_greve[1]
+        aux0 = 0
+        aux1 = 0
+        
+    print(migracao)
+            
+    return [progressao, tamanho_da_greve]
+
+
+######################################################################################################################################################################################
+
+
+def simula_greve_setores_migracao_individual_2(N, sistema, passos = 50, prob1 = 0.01, prob2 = 0.02):
+    
+    tamanho_da_greve = np.array([0,0])
+    progressao = np.zeros((2,passos))              # array que acumula a evolução temporal da greve
+    aux0 = 0
+    aux1 = 0
+    migracao = 0
+    
+    for i in range(passos):
+        j = 0
+        while j < sistema.place0_size:
+            sistema.place0[j].update_state(tamanho_da_greve[0]/sistema.place0_size)
+            if sistema.place0[j].state == 1:
+                aux0 += 1
+
+            prob = float(rd.random())
+            
+            if tamanho_da_greve[0] > tamanho_da_greve[1]:
+                probabilidade = prob1
+            else:
+                probabilidade = prob2
+                
+            if prob <= probabilidade:
+                migracao += 1
+                a = sistema.migrate(0, j)
+                if a:
+                    tamanho_da_greve[0] -= 1
+                j -= 1
+
+            j += 1
+
+        j = 0        
+        while j < sistema.place1_size:    
+            
+            sistema.place1[j].update_state(tamanho_da_greve[1]/sistema.place1_size)
+            if sistema.place1[j].state == 1:
+                aux1 += 1
+                
+            prob = float(rd.random())
+            
+            if tamanho_da_greve[1] > tamanho_da_greve[0]:
+                probabilidade = prob1
+            else:
+                probabilidade = prob2
+
+            if prob <= probabilidade:
+                migracao += 1
+                a = sistema.migrate(1, j)
+                if a:
+                    tamanho_da_greve[1] -= 1
+                j -= 1
+            
+            j += 1
+                
+                
+        tamanho_da_greve[0] = aux0
+        tamanho_da_greve[1] = aux1
+        progressao[0][i] = tamanho_da_greve[0]
+        progressao[1][i] = tamanho_da_greve[1]
+        aux0 = 0
+        aux1 = 0
+        
     print(migracao)
             
     return [progressao, tamanho_da_greve]
