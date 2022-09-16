@@ -5,17 +5,49 @@ import random as rd
 ######################################################################################################################################################################################
 
 """
+Criando o sistema de setores para simular a greve. 
+
+"""
+
+class Sistema:
+    
+    def __init__(self, agentes0, agentes1):
+        self.place0_size = len(agentes0)
+        self.place0 = agentes0
+        self.place1_size = len(agentes1)
+        self.place1 = agentes1
+        
+    def migrate(self, placeA, i):
+        if placeA == 0:
+            agente = self.place0[i]
+            self.place0 = np.delete(self.place0, i)
+            self.place0_size -= 1
+            self.place1 = np.append(self.place1, agente)
+            self.place1_size += 1
+        else:
+            agente = self.place1[i]
+            self.place1 = np.delete(self.place1, i)
+            self.place1_size -= 1
+            self.place0 = np.append(self.place0, agente)
+            self.place0_size += 1
+            
+            
+######################################################################################################################################################################################
+
+"""
 Criando os agentes para simular o sistema. 
 
 Todo agente possui seu limiar e também seu estado, se está na greve ou não, por exemplo.
 Aqui utilizamos um modelo estocástico para os limiares.
 """
 
+
 class Agente:
     
     def __init__(self, threshold):
         self.threshold = threshold
         self.state = 0
+        self.place = 0
     
     def threshold_model(self, percentage):
         m = 0.2                                                                # caso m -> inf, então o modelo se aproxima do modelo binário de limiares de Granovetter
@@ -33,6 +65,7 @@ class Agente:
             self.state = 1
         else:
             self.state = 0
+            
 
 ######################################################################################################################################################################################
 
@@ -41,6 +74,7 @@ Gerando os limiares de um espaço amostral.
 
 A população de origem da amostra possui uma distribuição normal de limiares entre seus agentes.
 """
+
 
 def cria_thresholds(N = 100, a = True, media = 25, desvio_padrao = 10):
     """
@@ -79,6 +113,7 @@ def cria_thresholds(N = 100, a = True, media = 25, desvio_padrao = 10):
 
 
 ######################################################################################################################################################################################
+
 
 def cria_agentes(N = 100, media = 25, desvio_padrao = 10):
     """
@@ -136,6 +171,7 @@ def simula_greve(thresholds):
             break
         tamanho_da_greve = aux
         aux = 0
+        
     return [progressao, tamanho_da_greve]
 
 
@@ -258,4 +294,73 @@ def simula_greve_estocastico_saida(agentes, passos):
 ######################################################################################################################################################################################
 
 
-#def 
+def change_place(agente):
+    if agente.place == 0:
+        agente.place = 1
+    else:
+        agente.place = 0
+           
+######################################################################################################################################################################################
+
+
+def simula_greve_setores(agentes_duplo, passos):
+    
+    tamanho_da_greve = np.array([0,0])
+    progressao = np.zeros((2,passos))              # array que acumula a evolução temporal da greve
+    aux = 0
+    
+    for i in range(passos):
+        for j in range(1):
+            for agente in agentes_duplo[j]:
+                agente.update_state(tamanho_da_greve[j])
+                if agente.state == 1:
+                    aux += 1
+            tamanho_da_greve[j] = aux
+            progressao[j][i] = tamanho_da_greve
+            aux = 0
+            
+    return [progressao, tamanho_da_greve]
+
+######################################################################################################################################################################################
+
+
+def simula_greve_setores_migracao(N, sistema, passos = 50, probabilidade_de_migracao = 0.2):
+    
+    tamanho_da_greve = np.array([0,0])
+    progressao = np.zeros((2,passos))              # array que acumula a evolução temporal da greve
+    aux0 = 0
+    aux1 = 0
+    migracao = 0
+    
+    for i in range(passos):
+        for j in range(sistema.place0_size):
+            sistema.place0[j].update_state(tamanho_da_greve[0]/sistema.place0_size)
+            if sistema.place0[j].state == 1:
+                aux0 += 1
+                
+        for j in range(sistema.place1_size):       
+            sistema.place1[j].update_state(tamanho_da_greve[1]/sistema.place1_size)
+            if sistema.place1[j].state == 1:
+                aux1 += 1
+                
+        tamanho_da_greve[0] = aux0
+        tamanho_da_greve[1] = aux1
+        progressao[0][i] = tamanho_da_greve[0]
+        progressao[1][i] = tamanho_da_greve[1]
+        aux0 = 0
+        aux1 = 0
+        
+        prob = float(rd.random())
+        
+        if float(prob) <= probabilidade_de_migracao:
+            migracao += 1
+            setor = rd.randint(0,1)
+            if setor == 0:
+                num_agente = rd.randint(0,sistema.place0_size-1)
+            else:
+                num_agente = rd.randint(0,sistema.place1_size-1)
+            
+            sistema.migrate(setor, num_agente)
+    print(migracao)
+            
+    return [progressao, tamanho_da_greve]
