@@ -13,12 +13,12 @@ class System:
     
     
     # creates a system to be simulated. With one reservoir of Agents, and two riot sectors
-    def __init__(self, agents, limit_0, limit_1):
+    def __init__(self, agents, sector0_size, sector1_size):
         self.reservoir = agents
         self.sector0 = np.array([])
-        self.sector0_size = limit_0
+        self.sector0_size = sector0_size
         self.sector1 = np.array([])
-        self.sector1_size = limit_1
+        self.sector1_size = sector1_size
      
     
     # migrates an Agent "i" from the sector "sector"
@@ -37,7 +37,7 @@ class System:
     # checks which Agent, in the reservoir, wants to riot according to it's threshold. It can go in sector 0 or 1.         
     def update_wishes_reservoir(self):
         for i in range(len(self.reservoir)):
-            num = rd.randint(0,1)
+            num = 0
             rnd = rd.random()
             if num == 0:
                 if len(self.sector0) < self.sector0_size:
@@ -46,11 +46,11 @@ class System:
                         self.reservoir[i].wish = 0
                         continue
                 
-                if len(self.sector1) < self.sector1_size:                    
-                    percentage = len(self.sector1)/self.sector1_size * 100
-                    if rnd <= self.reservoir[i].threshold_model(percentage):
-                        self.reservoir[i].wish = 1
-                        continue
+                #if len(self.sector1) < self.sector1_size:                    
+                #    percentage = len(self.sector1)/self.sector1_size * 100
+                #    if rnd <= self.reservoir[i].threshold_model(percentage):
+                #        self.reservoir[i].wish = 1
+                #        continue
                     
             else:
                 if len(self.sector1) < self.sector1_size:                    
@@ -67,7 +67,7 @@ class System:
     
     
     # checks which Agent, in both sectros, wants to exit the riot.              
-    def update_wishes_sectors(self):
+    def update_wishes_sectors_exit(self):
         for i in range(len(self.sector0)):
             rnd = rd.random()
             percentage = len(self.sector0)/self.sector0_size * 100
@@ -81,15 +81,36 @@ class System:
                 self.sector1[i].wish = -1
      
     
-    def update_wishes_migration_random(self,migration_probability):
+    # checks which Agent, on both sectors, wants to migrate to other sector (random model)
+    def update_wishes_sectors_migration_random(self,migration_probability):
         for i in range(len(self.sector0)):
             rnd = rd.random()
-            if rnd > migration_probability:
+            if rnd <= migration_probability:
                 self.sector0[i].wish = 1
                 
         for i in range(len(self.sector1)):
             rnd = rd.random()
-            if rnd > migration_probability:
+            if rnd <= migration_probability:
+                self.sector1[i].wish = 0
+                
+                
+    # checks which Agent, on both sectors, wants to migrate to other sector (gregarious model)             
+    def update_wishes_sectors_migration_gregarious(self):
+        m = 3*10e-5
+        dif = len(system.sector1) - len(system.sector0)
+        probability = 1 - np.exp(-m * dif)
+        
+        for i in range(len(self.sector0)):
+            rnd = rd.random()
+            if dif > 0 and rnd <= probability:
+                self.sector0[i].wish = 1
+                
+        dif = len(system.sector0) - len(system.sector1)
+        probability = 1 - np.exp(-m * dif)
+        
+        for i in range(len(self.sector1)):
+            rnd = rd.random()
+            if dif > 0 and rnd <= probability:
                 self.sector1[i].wish = 0
     
     
@@ -101,12 +122,16 @@ class System:
                 agent = self.reservoir[i]
                 self.reservoir = np.delete(self.reservoir, i)
                 self.sector0 = np.append(self.sector0, agent)
+                agent.sector = agent.wish
                 i -= 1
             elif self.reservoir[i].wish == 1 and len(self.sector1) < self.sector1_size:
                 agent = self.reservoir[i]
                 self.reservoir = np.delete(self.reservoir, i)
                 self.sector1 = np.append(self.sector1, agent)
+                agent.sector = agent.wish
                 i -= 1
+            else:
+                self.reservoir[i].wish = self.reservoir[i].sector
             i += 1
     
     
@@ -118,12 +143,16 @@ class System:
                 agent = self.sector0[i]
                 self.sector0 = np.delete(self.sector0, i)
                 self.reservoir = np.append(self.reservoir, agent)
+                agent.sector = agent.wish
                 i -= 1
             elif self.sector0[i].wish == 1 and len(self.sector1) < self.sector1_size:
                 agent = self.sector0[i]
                 self.sector0 = np.delete(self.sector0, i)
                 self.sector1 = np.append(self.sector1, agent)
+                agent.sector = agent.wish
                 i -= 1
+            else:
+                self.reservoir[i].wish = self.reservoir[i].sector
             i += 1
             
         i = 0
@@ -132,12 +161,16 @@ class System:
                 agent = self.sector1[i]
                 self.sector1 = np.delete(self.sector1, i)
                 self.reservoir = np.append(self.reservoir, agent)
+                agent.sector = agent.wish
                 i -= 1
             elif self.sector1[i].wish == 0 and len(self.sector0) < self.sector0_size:
                 agent = self.sector1[i]
                 self.sector0 = np.delete(self.sector1, i)
                 self.sector1 = np.append(self.sector0, agent)
+                agent.sector = agent.wish
                 i -= 1
+            else:
+                self.reservoir[i].wish = self.reservoir[i].sector
             i += 1
                 
             
@@ -147,7 +180,10 @@ class System:
 This class is used to store an agent's data. 
 
 Every agent has a threshold and a state value, if the state value is 1 the agent is part of the riot, for exemple.
-We are using the stochastic method.
+We are using the stochastic method (Model without sectors).
+
+Using the sectors model, every Agent has a wish value, that stores the place that the Agent wants to go in the next time step,
+and a sector value, that stores the place that the Agent currently is.
 
 agent.sector == -1: it is in the reservoir; agent.sector == 0: it is in the sector_0; agent.sector == 1: it is in the sector_1. 
 """
@@ -160,6 +196,7 @@ class Agent:
         self.threshold = threshold
         self.wish = -1
         self.sector = -1
+        self.state = 0
     
     
     def threshold_model(self, percentage):
@@ -244,7 +281,7 @@ def create_thresholds(N = 100, a = True, average = 25, deviation = 10):
 ######################################################################################################################################################################################
 
 
-def create_agents (N = 100, average = 25, deviation = 10):
+def create_agents(N = 100, average = 25, deviation = 10):
     """
     Inputs:
         N := total number of agents
@@ -311,7 +348,7 @@ def simulate_riot(thresholds):
 ######################################################################################################################################################################################
 
 
-def simulate_riot_stochastic(agents, steps):
+def simulate_riot_stochastic(agents, steps = 100):
     """
     Inputs:
         agents := Agents array
@@ -343,7 +380,7 @@ def simulate_riot_stochastic(agents, steps):
 ######################################################################################################################################################################################
 
 
-def simulate_riot_stochastic_2(agents, steps):
+def simulate_riot_stochastic_2(agents, steps = 100):
     """
     Inputs:
         agents := Agents array
@@ -381,13 +418,15 @@ def simulate_riot_stochastic_2(agents, steps):
 ######################################################################################################################################################################################
 
 
-def simulate_riot_stochastic_exit(agents, steps):
+def simulate_riot_stochastic_exit(agents, steps = 100):
     """
     Inputs:
         agents := Agents array
         steps := number of the simulation's time steps
     
-    This function calculates the size of an riot according with the stochastic threshold model: The Agent has a higher probability of entering the riot if its threshold value is less or equal to the number (or percentage) of people rioting, and has a low probability of entering the riot if its threshold value is less than the number (or percentage) of people rioting. Moreover, there is a chance of an Agent to exit the riot according to a logistic function.
+    This function calculates the size of an riot according with the stochastic threshold model: The Agent has a higher probability of entering the riot if its threshold value is less or equal to the number
+    (or percentage) of people rioting, and has a low probability of entering the riot if its threshold value is less than the number (or percentage) of people rioting. Moreover, there is a chance of an Agent
+    to exit the riot according to a logistic function.
     
     Outputs:
         A "answer" np.array with two elements:
@@ -411,497 +450,205 @@ def simulate_riot_stochastic_exit(agents, steps):
 ######################################################################################################################################################################################
 
 
-def simulate_riot_sectors(system, steps):
+def simulate_riot_sectors(system, steps = 50):
     """
     Inputs:
-        sistema := variável da classe Sistema que contém dois arrays com N agentes cada
-        passos := número de passos temporais executados pelo programa
+        system := System class variable that contains all Agents
+        steps := number of the simulation's time steps
     
-    Ao receber o array com os agentes a função calcula qual o tamanho final da greve de acordo com o modelo de limiares estocastico, isto é,
-    o agente possui maior probabilidade de entrar na greve caso seu limiar seja ultrapassado e, caso contrário, tem menor probabilidade de não entrar, porém
-    existem dois setores nos quais as greves são calculadas independentemente. 
+    This functions simulates a set of 2 simultaneous riots that occur in 2 distinct sectors using the stochastic threshold model. There are a set of Agents in a reservoir that can
+    enter sectors 0 or 1 to riot. Each sector has a size, so the thrsehold of each Agent is based on the number of Agents rioting in a sector compared with the number of Agents that
+    can be in that sector.
+     
     
     Outpurs:
-        Retorna um np.array "resposta" com duas entradas:
-            resposta[0] := um array com a evolução da greve ao longo do tempo
-            resposta[1] := tamanho final da greve
-    
+         A np.array "progression" that contains the time evolution of each riots over time.
+         
     """
+
+    progression = np.zeros((2,steps+1))              # array that stores the riot's evolution over time
     
-    riots_size = np.array([0,0])
-    progression = np.zeros((2,passos+1))              # array que acumula a evolução temporal da greve
-    
-    # verifica se os agentes quer aderir à greve 
-    for i in range(1,passos+1):0
-        for j in range(len(sistema.reservoir)):
-            num = rnd.randint(0,1)
-            if num == 0:
-                riots_size[0] += sistema.sector0
-        
-        for j in range(sistema.sector1_size):
-            tamanho_da_greve[1] += sistema.sector1[j].update_state(tamanho_da_greve[1])
+    for i in range(1,steps+1):
+        system.update_wishes_reservoir()             # check reservoir Agents (enter riot)
+        system.update_reservoir()                    # move Agents from reservoir
+           
+        progression[0][i] = len(system.sector0)
+        progression[1][i] = len(system.sector1)
             
-        progressao[0][i] = tamanho_da_greve[0]
-        progressao[1][i] = tamanho_da_greve[1]
-            
-    return [progressao, tamanho_da_greve]
+    return progression
 
 
 ######################################################################################################################################################################################
 
 
-def simula_greve_setores_saida(sistema, passos):
+def simulate_riot_sectors_exit(system, steps = 50):
     """
     Inputs:
-        sistema := variável da classe Sistema que contém dois arrays com N agentes cada
-        passos := número de passos temporais executados pelo programa
+        system := System class variable that contains all Agents
+        steps := number of the simulation's time steps
     
-    Ao receber o array com os agentes a função calcula qual o tamanho final da greve de acordo com o modelo de limiares estocastico, isto é,
-    o agente possui maior probabilidade de entrar na greve caso seu limiar seja ultrapassado e, caso contrário, tem menor probabilidade de não entrar, porém
-    existem dois setores nos quais as greves são calculadas independentemente. Além disso, existe a possibilidade do agente sair da greve, com probabilidade
-    igual à uma função logística semelhante àquela que se usa para verificar se o agente entra na greve.
+    This functions simulates a set of 2 simultaneous riots that occur in 2 distinct sectors using the stochastic threshold model. There are a set of Agents in a reservoir that can
+    enter sectors 0 or 1 to riot. Each sector has a size, so the thrsehold of each Agent is based on the number of Agents rioting in a sector compared with the number of Agents that
+    can be in that sector. In this function, the Agents can exit the riot and return to the reservoir according to a logistic function.
+     
     
     Outpurs:
-        Retorna um np.array "resposta" com duas entradas:
-            resposta[0] := um array com a evolução da greve ao longo do tempo
-            resposta[1] := tamanho final da greve
-    
+         A np.array "progression" that contains the time evolution of each riots over time.
+         
     """
     
-    tamanho_da_greve = np.array([0,0])
-    progressao = np.zeros((2,passos+1))              # array que acumula a evolução temporal da greve
+    progression = np.zeros((2,steps+1))              # array that stores the riot's evolution over time
     
-    # verifica se os agentes quer aderir à greve
-    for i in range(1,passos+1):
-        for j in range(sistema.sector0_size):
-            tamanho_da_greve[0] += sistema.sector0[j].update_state_exit(tamanho_da_greve[0])
-        
-        for j in range(sistema.sector1_size):
-            tamanho_da_greve[1] += sistema.sector1[j].update_state_exit(tamanho_da_greve[1])
+    for i in range(1,steps+1):
+        system.update_wishes_reservoir()             # check reservoir Agents (enter riot)
+        system.update_wishes_sectors_exit()          # check sectors Agents (leave riot)
+        system.update_reservoir()                    # move Agents from reservoir
+        system.update_sectors()                      # move Agents from sectors
+           
+        progression[0][i] = len(system.sector0)
+        progression[1][i] = len(system.sector1)
             
-        progressao[0][i] = tamanho_da_greve[0]
-        progressao[1][i] = tamanho_da_greve[1]
-            
-    return [progressao, tamanho_da_greve]
+    return progression
 
 
 ######################################################################################################################################################################################
 
 
-def simula_greve_setores_migracao(sistema, passos = 50, probabilidade_de_migracao = 0.2):
-    """
+def simulate_riot_sectors_migration(system, steps = 50, migration_probability = 0.01):
+   """
     Inputs:
-        sistema := variável da classe Sistema que contém dois arrays com N agentes cada
-        passos := número de passos temporais executados pelo programa
-        probabilidade_de_migracao := probabilidade de um agente mudar de setor do sistema
+        system := System class variable that contains all Agents
+        steps := number of the simulation's time steps
     
-    Ao receber o array com os agentes a função calcula qual o tamanho final da greve de acordo com o modelo de limiares estocastico, isto é,
-    o agente possui maior probabilidade de entrar na greve caso seu limiar seja ultrapassado e, caso contrário, tem menor probabilidade de não entrar, porém
-    existem dois setores nos quais as greves são calculadas independentemente. Além disso, existe uma probabilidade de, aleatoriamente, um dos agentes mudar
-    de setor a cada passo temporal.
+    This functions simulates a set of 2 simultaneous riots that occur in 2 distinct sectors using the stochastic threshold model. There are a set of Agents in a reservoir that can
+    enter sectors 0 or 1 to riot. Each sector has a size, so the thrsehold of each Agent is based on the number of Agents rioting in a sector compared with the number of Agents that
+    can be in that sector. In this function, the Agents in a section can migrate to the other sector with probability equals to "migration_probability".
+     
     
     Outpurs:
-        Retorna um np.array "resposta" com duas entradas:
-            resposta[0] := um array com a evolução da greve ao longo do tempo
-            resposta[1] := tamanho final da greve
-            resposta[2] := número de vezes em que ocorreram migrações
-    
+         A np.array "progression" that contains the time evolution of each riots over time.
+         
     """
     
-    tamanho_da_greve = np.array([0,0])
-    progressao = np.zeros((2,passos+1))              # array que acumula a evolução temporal da greve
-    migracao = 0
+    progression = np.zeros((2,steps+1))              # array that stores the riot's evolution over time
     
-    #verifica se os agentes querem aderir à greve
-    for i in range(1,passos+1):
-        for j in range(sistema.sector0_size):
-            tamanho_da_greve[0] += sistema.sector0[j].update_state(tamanho_da_greve[0]/sistema.sector0_size * 100)
-        
-        for j in range(sistema.sector1_size):       
-            tamanho_da_greve[1] += sistema.sector1[j].update_state(tamanho_da_greve[1]/sistema.sector1_size * 100)
-                
-        progressao[0][i] = tamanho_da_greve[0]
-        progressao[1][i] = tamanho_da_greve[1]
-        
-        #verifica se um agente quer migrar
-        prob = rd.random()
-        
-        if prob <= probabilidade_de_migracao:
-            migracao += 1
-            setor = rd.randint(0,1)
-            if setor == 0:
-                num_agente = rd.randint(0,sistema.sector0_size-1)
-                if sistema.sector0[num_agente].state == 1:
-                    tamanho_da_greve[0] -= 1
-                    tamanho_da_greve[1] += 1
-            else:
-                num_agente = rd.randint(0,sistema.sector1_size-1)
-                if sistema.sector1[num_agente].state == 1:
-                    tamanho_da_greve[1] -= 1
-                    tamanho_da_greve[0] += 1
+    for i in range(1,steps+1):
+        system.update_wishes_reservoir()                                     # check reservoir Agents (enter riot)
+        system.update_wishes_sectors_migration_random(migration_probability) # check sectors Agents (migrate to other sector)
+        system.update_reservoir()                                            # move Agents from reservoir
+        system.update_sectors()                                              # move Agents from sectors
+           
+        progression[0][i] = len(system.sector0)
+        progression[1][i] = len(system.sector1)
             
-            sistema.migrate(setor, num_agente)
-            
-    return [progressao, tamanho_da_greve, migracao]
+    return progression
 
 
 ######################################################################################################################################################################################
 
 
-def simula_greve_setores_migracao_individual(sistema, passos = 50, probabilidade_de_migracao_individual = 0.01, ligar = 0):
+def simulate_riot_sectors_migration_exit(system, steps = 50, migration_probability = 0.01, start = 0):
     """
     Inputs:
-        sistema := variável da classe Sistema que contém dois arrays com N agentes cada
-        passos := número de passos temporais executados pelo programa
-        probabilidade_de_migracao_individual := probabilidade de um agente mudar de setor do sistema
-        ligar := número do passo temporal em que as migrações passam a ser permitidas
+        system := System class variable that contains all Agents
+        steps := number of the simulation's time steps
+        start := the time step value when the Agents can migrate between sectors
     
-    Ao receber o array com os agentes a função calcula qual o tamanho final da greve de acordo com o modelo de limiares estocastico, isto é,
-    o agente possui maior probabilidade de entrar na greve caso seu limiar seja ultrapassado e, caso contrário, tem menor probabilidade de não entrar, porém
-    existem dois setores nos quais as greves são calculadas independentemente. Além disso, existe uma probabilidade de, aleatoriamente, um dos agentes mudar
-    de setor quando seu estado é verificado, isso para quando a migração for permitida, isto é, passo temporal atual > 'ligar'.
+    This functions simulates a set of 2 simultaneous riots that occur in 2 distinct sectors using the stochastic threshold model. There are a set of Agents in a reservoir that can
+    enter sectors 0 or 1 to riot. Each sector has a size, so the thrsehold of each Agent is based on the number of Agents rioting in a sector compared with the number of Agents that
+    can be in that sector. In this function, the Agents in a section can migrate to the other sector with probability equals to "migration_probability" if "i", the current time step is
+    greater or equal to "start". Moreover, the Agents can exit the riot and return to the reservoir according to a logistic function.
+     
     
     Outpurs:
-        Retorna um np.array "resposta" com duas entradas:
-            resposta[0] := um array com a evolução da greve ao longo do tempo
-            resposta[1] := tamanho final da greve
-            resposta[2] := número de vezes em que ocorreram migrações
+         A np.array "progression" that contains the time evolution of each riots over time.
         
     """
     
-    tamanho_da_greve = np.array([0,0])
-    progressao = np.zeros((2,2*passos+1))              # array que acumula a evolução temporal da greve
-    migracao = 0
+    progression = np.zeros((2,steps+1))              # array that stores the riot's evolution over time
     
-    for i in range(1,passos+1):
-        
-        # verifica se os agentes querem ingressar na greve
-        j = 0
-        while j < sistema.sector0_size:
-            tamanho_da_greve[0] += sistema.sector0[j].update_state(tamanho_da_greve[0]/sistema.sector0_size * 100)
-            j += 1
-        
-        j = 0
-        while j < sistema.sector1_size:
-            tamanho_da_greve[1] += sistema.sector1[j].update_state(tamanho_da_greve[1]/sistema.sector0_size * 100)
-            j += 1
-        
-        progressao[0][2*i - 1] = tamanho_da_greve[0]
-        progressao[1][2*i - 1] = tamanho_da_greve[1]
-        
-        # verifica se os agentes querem migrar
-        if i > ligar:
-            j = 0
-            while j < sistema.sector0_size:
-
-                prob = rd.random()
-
-                if prob <= probabilidade_de_migracao_individual:
-                    migracao += 1
-                    if sistema.sector0[j].state == 1:
-                        tamanho_da_greve[0] -= 1
-                        tamanho_da_greve[1] += 1
-
-                    sistema.migrate(0, j)
-                    j -= 1                
-
-                j += 1
-
-            j = 0
-            while j < sistema.sector1_size:
-
-                prob = rd.random()
-
-                if prob <= probabilidade_de_migracao_individual:
-                    migracao += 1
-                    if sistema.sector1[j].state == 1:
-                        tamanho_da_greve[1] -= 1
-                        tamanho_da_greve[0] += 1
-
-                    sistema.migrate(1, j)
-                    j -= 1                
-
-                j += 1
-                
-        progressao[0][2*i] = tamanho_da_greve[0]
-        progressao[1][2*i] = tamanho_da_greve[1]
+    for i in range(1,steps+1):
+        system.update_wishes_reservoir()                                         # check reservoir Agents (enter riot)
+        system.update_wishes_sectors_exit()                                      # check sectors Agents (leave riot)
+        if i >= start:
+            system.update_wishes_sectors_migration_random(migration_probability) # check sectors Agents (migrate to other sector)
+        system.update_reservoir()                                                # move Agents from reservoir
+        system.update_sectors()                                                  # move Agents from sectors
+           
+        progression[0][i] = len(system.sector0)
+        progression[1][i] = len(system.sector1)
             
-    return [progressao, tamanho_da_greve, migracao]
+    return progression
 
 
 ######################################################################################################################################################################################
 
 
-def simula_greve_setores_migracao_individual_saida(sistema, passos = 50, probabilidade_de_migracao_individual = 0.01, ligar = 0):
+def simulate_riot_sectors_migration_gregarious(system, steps = 50, start = 0):
     """
     Inputs:
-        sistema := variável da classe Sistema que contém dois arrays com N agentes cada
-        passos := número de passos temporais executados pelo programa
-        probabilidade_de_migracao_individual := probabilidade de um agente mudar de setor do sistema
-        ligar := número do passo temporal em que as migrações passam a ser permitidas
+        system := System class variable that contains all Agents
+        steps := number of the simulation's time steps
+        start := the time step value when the Agents can migrate between sectors
     
-    Ao receber o array com os agentes a função calcula qual o tamanho final da greve de acordo com o modelo de limiares estocastico, isto é,
-    o agente possui maior probabilidade de entrar na greve caso seu limiar seja ultrapassado e, caso contrário, tem menor probabilidade de não entrar, porém
-    existem dois setores nos quais as greves são calculadas independentemente. Além disso, existe uma probabilidade de, aleatoriamente, um dos agentes mudar
-    de setor quando seu estado é verificado, isso para quando a migração for permitida, isto é, passo temporal atual > 'ligar'. Ainda, existe a possibilidade
-    do agente sair da greve, com probabilidade igual à uma função logística semelhante àquela que se usa para verificar se o agente entra na greve.
+    This functions simulates a set of 2 simultaneous riots that occur in 2 distinct sectors using the stochastic threshold model. There are a set of Agents in a reservoir that can
+    enter sectors 0 or 1 to riot. Each sector has a size, so the thrsehold of each Agent is based on the number of Agents rioting in a sector compared with the number of Agents that
+    can be in that sector. In this function, the Agents in a section can migrate to the other sector according to the difference between the number of Agents in each sector if "i",
+    the current time step is greater or equal to "start".
+     
     
     Outpurs:
-        Retorna um np.array "resposta" com duas entradas:
-            resposta[0] := um array com a evolução da greve ao longo do tempo
-            resposta[1] := tamanho final da greve
-            resposta[2] := número de vezes em que ocorreram migrações
+         A np.array "progression" that contains the time evolution of each riots over time.
         
     """
     
-    tamanho_da_greve = np.array([0,0])
-    progressao = np.zeros((2,2*passos+1))              # array que acumula a evolução temporal da greve
-    migracao = 0
+    progression = np.zeros((2,steps+1))              # array that stores the riot's evolution over time
     
-    for i in range(1,passos+1):
-        
-        # verifica se os agentes querem ingressar na greve
-        j = 0
-        while j < sistema.sector0_size:
-            tamanho_da_greve[0] += sistema.sector0[j].update_state_exit(tamanho_da_greve[0]/sistema.sector0_size * 100)
-            j += 1
-        
-        j = 0
-        while j < sistema.sector1_size:
-            tamanho_da_greve[1] += sistema.sector1[j].update_state_exit(tamanho_da_greve[1]/sistema.sector0_size * 100)
-            j += 1
-        
-        progressao[0][2*i - 1] = tamanho_da_greve[0]
-        progressao[1][2*i - 1] = tamanho_da_greve[1]
-        
-        # verifica se os agentes querem migrar
-        if i > ligar:
-            j = 0
-            while j < sistema.sector0_size:
-
-                prob = rd.random()
-
-                if prob <= probabilidade_de_migracao_individual:
-                    migracao += 1
-                    if sistema.sector0[j].state == 1:
-                        tamanho_da_greve[0] -= 1
-                        tamanho_da_greve[1] += 1
-
-                    sistema.migrate(0, j)
-                    j -= 1                
-
-                j += 1
-
-            j = 0
-            while j < sistema.sector1_size:
-
-                prob = rd.random()
-
-                if prob <= probabilidade_de_migracao_individual:
-                    migracao += 1
-                    if sistema.sector1[j].state == 1:
-                        tamanho_da_greve[1] -= 1
-                        tamanho_da_greve[0] += 1
-
-                    sistema.migrate(1, j)
-                    j -= 1                
-
-                j += 1
-                
-        progressao[0][2*i] = tamanho_da_greve[0]
-        progressao[1][2*i] = tamanho_da_greve[1]
+    for i in range(1,steps+1):
+        system.update_wishes_reservoir()                                             # check reservoir Agents (enter riot)
+        if i >= start:
+            system.update_wishes_sectors_migration_gregarious(migration_probability) # check sectors Agents (migrate to other sector)
+        system.update_reservoir()                                                    # move Agents from reservoir
+        system.update_sectors()                                                      # move Agents from sectors
+           
+        progression[0][i] = len(system.sector0)
+        progression[1][i] = len(system.sector1)
             
-    return [progressao, tamanho_da_greve, migracao]
-
-
-######################################################################################################################################################################################
-
-def funcao_migracao_gregario(sectorA_size, sectorB_size):
-    """
-    Inputs:
-        sectorA_size := tamanho da greve no setor em que o agente se encontra
-        sectorB_size := tamanho da greve no outro setor
-        
-    Outputs:
-        Retorna um float, sendo este a probabilidade de o agente mudar de setor
-        
-    """
-    
-    dif = sectorB_size - sectorA_size
-    
-    if dif <= 0:
-        return 0
-    
-    else:
-        m = 3*10e-5
-        res = 1 - np.exp(-m * dif)
-        return res
+    return progression
 
 
 ######################################################################################################################################################################################
 
 
-def simula_greve_setores_migracao_individual_gregario(sistema, passos = 50, ligar = 0):
+def simulate_riot_sectors_migration_gregarious_exit(system, steps = 50, start = 0):
     """
     Inputs:
-        sistema := variável da classe Sistema que contém dois arrays com N agentes cada
-        passos := número de passos temporais executados pelo programa 
-        ligar := número do passo temporal em que as migrações passam a ser permitidas
+        system := System class variable that contains all Agents
+        steps := number of the simulation's time steps
+        start := the time step value when the Agents can migrate between sectors
     
-    Ao receber o array com os agentes a função calcula qual o tamanho final da greve de acordo com o modelo de limiares estocastico, isto é,
-    o agente possui maior probabilidade de entrar na greve caso seu limiar seja ultrapassado e, caso contrário, tem menor probabilidade de não entrar, porém
-    existem dois setores nos quais as greves são calculadas independentemente. Além disso, existe uma probabilidade de, aleatoriamente, um dos agentes mudar
-    de setor quando seu estado é verificado, isso para quando a migração for permitida, isto é, passo temporal atual > 'ligar'. Os agentes apenas migram
-    para o setor com maior número de agentes na greve, de acordo com a diferença de agentes em greve em cada setor.
-    
-    Outpurs:
-        Retorna um np.array "resposta" com duas entradas:
-            resposta[0] := um array com a evolução da greve ao longo do tempo
-            resposta[1] := tamanho final da greve
-            resposta[2] := número de vezes em que ocorreram migrações
-        
-    """
-    
-    tamanho_da_greve = np.array([0,0])
-    progressao = np.zeros((2,2*passos+1))              # array que acumula a evolução temporal da greve
-    migracao = 0
-    
-    for i in range(1,passos+1):
-        
-        # verifica se os agentes querem ingressar na greve
-        j = 0
-        while j < sistema.sector0_size:
-            tamanho_da_greve[0] += sistema.sector0[j].update_state(tamanho_da_greve[0]/sistema.sector0_size * 100)
-            j += 1
-        
-        j = 0
-        while j < sistema.sector1_size:
-            tamanho_da_greve[1] += sistema.sector1[j].update_state(tamanho_da_greve[1]/sistema.sector0_size * 100)
-            j += 1
-        
-        progressao[0][2*i - 1] = tamanho_da_greve[0]
-        progressao[1][2*i - 1] = tamanho_da_greve[1]
-        
-        # verifica se os agentes querem migrar
-        if i > ligar:
-            j = 0
-            while j < sistema.sector0_size:
-
-                prob = rd.random()
-
-                if prob < funcao_migracao_gregario(tamanho_da_greve[0],tamanho_da_greve[1]):
-                    migracao += 1
-                    if sistema.sector0[j].state == 1:
-                        tamanho_da_greve[0] -= 1
-                        tamanho_da_greve[1] += 1
-
-                    sistema.migrate(0, j)
-                    j -= 1                
-
-                j += 1
-
-            j = 0
-            while j < sistema.sector1_size:
-
-                prob = rd.random()
-
-                if prob < funcao_migracao_gregario(tamanho_da_greve[1],tamanho_da_greve[0]):
-                    migracao += 1
-                    if sistema.sector1[j].state == 1:
-                        tamanho_da_greve[1] -= 1
-                        tamanho_da_greve[0] += 1
-
-                    sistema.migrate(1, j)
-                    j -= 1                
-
-                j += 1
-                
-        progressao[0][2*i] = tamanho_da_greve[0]
-        progressao[1][2*i] = tamanho_da_greve[1]
-            
-    return [progressao, tamanho_da_greve, migracao]
-
-
-######################################################################################################################################################################################
-
-
-def simula_greve_setores_migracao_individual_gregario_saida(sistema, passos = 50, ligar = 0):
-    """
-    Inputs:
-        sistema := variável da classe Sistema que contém dois arrays com N agentes cada
-        passos := número de passos temporais executados pelo programa 
-        ligar := número do passo temporal em que as migrações passam a ser permitidas
-    
-    Ao receber o array com os agentes a função calcula qual o tamanho final da greve de acordo com o modelo de limiares estocastico, isto é,
-    o agente possui maior probabilidade de entrar na greve caso seu limiar seja ultrapassado e, caso contrário, tem menor probabilidade de não entrar, porém
-    existem dois setores nos quais as greves são calculadas independentemente. Além disso, existe uma probabilidade de, aleatoriamente, um dos agentes mudar
-    de setor quando seu estado é verificado, isso para quando a migração for permitida, isto é, passo temporal atual > 'ligar'. Os agentes apenas migram
-    para o setor com maior número de agentes na greve, de acordo com a diferença de agentes em greve em cada setor. Ainda, existe a possibilidade
-    do agente sair da greve, com probabilidade igual à uma função logística semelhante àquela que se usa para verificar se o agente entra na greve.
+    This functions simulates a set of 2 simultaneous riots that occur in 2 distinct sectors using the stochastic threshold model. There are a set of Agents in a reservoir that can
+    enter sectors 0 or 1 to riot. Each sector has a size, so the thrsehold of each Agent is based on the number of Agents rioting in a sector compared with the number of Agents that
+    can be in that sector. In this function, the Agents in a section can migrate to the other sector according to the difference between the number of Agents in each sector if "i",
+    the current time step is greater or equal to "start". Moreover, the Agents can exit the riot and return to the reservoir according to a logistic function.
+     
     
     Outpurs:
-        Retorna um np.array "resposta" com duas entradas:
-            resposta[0] := um array com a evolução da greve ao longo do tempo
-            resposta[1] := tamanho final da greve
-            resposta[2] := número de vezes em que ocorreram migrações
+         A np.array "progression" that contains the time evolution of each riots over time.
         
     """
     
-    tamanho_da_greve = np.array([0,0])
-    progressao = np.zeros((2,2*passos+1))              # array que acumula a evolução temporal da greve
-    migracao = 0
+    progression = np.zeros((2,steps+1))              # array that stores the riot's evolution over time
     
-    for i in range(1,passos+1):
-        
-        # verifica se os agentes querem ingressar na greve
-        j = 0
-        while j < sistema.sector0_size:
-            tamanho_da_greve[0] += sistema.sector0[j].update_state_exit(tamanho_da_greve[0]/sistema.sector0_size * 100)
-            j += 1
-        
-        j = 0
-        while j < sistema.sector1_size:
-            tamanho_da_greve[1] += sistema.sector1[j].update_state_exit(tamanho_da_greve[1]/sistema.sector0_size * 100)
-            j += 1
-        
-        progressao[0][2*i - 1] = tamanho_da_greve[0]
-        progressao[1][2*i - 1] = tamanho_da_greve[1]
-        
-        # verifica se os agentes querem migrar
-        if i > ligar:
-            j = 0
-            while j < sistema.sector0_size:
-
-                prob = rd.random()
-
-                if prob < funcao_migracao_gregario(tamanho_da_greve[0],tamanho_da_greve[1]):
-                    migracao += 1
-                    if sistema.sector0[j].state == 1:
-                        tamanho_da_greve[0] -= 1
-                        tamanho_da_greve[1] += 1
-
-                    sistema.migrate(0, j)
-                    j -= 1                
-
-                j += 1
-
-            j = 0
-            while j < sistema.sector1_size:
-
-                prob = rd.random()
-
-                if prob < funcao_migracao_gregario(tamanho_da_greve[1],tamanho_da_greve[0]):
-                    migracao += 1
-                    if sistema.sector1[j].state == 1:
-                        tamanho_da_greve[1] -= 1
-                        tamanho_da_greve[0] += 1
-
-                    sistema.migrate(1, j)
-                    j -= 1                
-
-                j += 1
-                
-        progressao[0][2*i] = tamanho_da_greve[0]
-        progressao[1][2*i] = tamanho_da_greve[1]
+    for i in range(1,steps+1):
+        system.update_wishes_reservoir()                                             # check reservoir Agents (enter riot)
+        system.update_wishes_sectors_exit()                                          # check sectors Agents (leave riot)
+        if i >= start:
+            system.update_wishes_sectors_migration_gregarious(migration_probability) # check sectors Agents (migrate to other sector)
+        system.update_reservoir()                                                    # move Agents from reservoir
+        system.update_sectors()                                                      # move Agents from sectors
+           
+        progression[0][i] = len(system.sector0)
+        progression[1][i] = len(system.sector1)
             
-    return [progressao, tamanho_da_greve, migracao]
+    return progression
