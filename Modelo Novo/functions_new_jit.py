@@ -1,11 +1,9 @@
 import numpy as np
+import numba
+from numba.experimental import jitclass
+from numba import njit
 import matplotlib.pyplot as plt
 import random as rd
-from numba import jit
-
-"""
-TROCAR TODOS OS ARRAYS COMO ARRAYS DE TAMANHOS FIXOS, ISTO É, PREVIAMENTE ALOCADOS
-"""
 
 ######################################################################################################################################################################################
 
@@ -20,9 +18,9 @@ class System:
     # creates a system to be simulated. With one reservoir of Agents, and two riot sectors
     def __init__(self, agents, sector0_size, sector1_size):
         self.reservoir = agents
-        self.sector0 = np.array([])
+        self.sector0 = np.empty(sector0_size)
         self.sector0_size = sector0_size
-        self.sector1 = np.array([])
+        self.sector1 = np.empty(sector1_size)
         self.sector1_size = sector1_size
      
     
@@ -101,8 +99,8 @@ class System:
                 
     # checks which Agent, on both sectors, wants to migrate to other sector (gregarious model)             
     def update_wishes_sectors_migration_gregarious(self):
-        m = 1e-3
-        dif = len(self.sector1) - len(self.sector0)
+        m = 3*10e-5
+        dif = len(system.sector1) - len(system.sector0)
         probability = 1 - np.exp(-m * dif)
         
         for i in range(len(self.sector0)):
@@ -110,7 +108,7 @@ class System:
             if dif > 0 and rnd <= probability:
                 self.sector0[i].wish = 1
                 
-        dif = len(self.sector0) - len(self.sector1)
+        dif = len(system.sector0) - len(system.sector1)
         probability = 1 - np.exp(-m * dif)
         
         for i in range(len(self.sector1)):
@@ -170,8 +168,8 @@ class System:
                 i -= 1
             elif self.sector1[i].wish == 0 and len(self.sector0) < self.sector0_size:
                 agent = self.sector1[i]
-                self.sector1 = np.delete(self.sector1, i)
-                self.sector0 = np.append(self.sector0, agent)
+                self.sector0 = np.delete(self.sector1, i)
+                self.sector1 = np.append(self.sector0, agent)
                 agent.sector = agent.wish
                 i -= 1
             else:
@@ -193,7 +191,14 @@ and a sector value, that stores the place that the Agent currently is.
 agent.sector == -1: it is in the reservoir; agent.sector == 0: it is in the sector_0; agent.sector == 1: it is in the sector_1. 
 """
 
+spec = [
+    ('threshold', numba.int8),               
+    ('wish', numba.int8),
+    ('sector', numba.int8),
+    ('state', numba.int8),
+]
 
+@jitclass(spec)
 class Agent:
     
     
@@ -246,7 +251,7 @@ class Agent:
 Generates an sample of thresholds according with a normal distribution of given average and standard deviation
 """
 
-
+@njit(numba.float64[:](numba.int64,numba.int64,numba.int64))
 def create_thresholds(N = 100, average = 25, deviation = 10):
     """
     Inputs:
@@ -261,6 +266,7 @@ def create_thresholds(N = 100, average = 25, deviation = 10):
         A np.array with the sorted thresholds values
     
     """
+    
     thresholds = np.zeros(N)
     
     # generating the values
@@ -274,14 +280,13 @@ def create_thresholds(N = 100, average = 25, deviation = 10):
 
         thresholds[i] = threshold
         
-    thresholds = sorted(thresholds) #sorts the array
+    #thresholds = sorted(thresholds) #sorts the array
     
     return thresholds
 
-
 ######################################################################################################################################################################################
 
-
+@njit((numba.int64,numba.int64,numba.int64))
 def create_agents(N = 100, average = 25, deviation = 10):
     """
     Inputs:
@@ -296,13 +301,12 @@ def create_agents(N = 100, average = 25, deviation = 10):
     
     """
     
-    agents = np.empty(N, dtype=Agent)
+    agents = numba.typed.List()
     
     thresholds = create_thresholds(N, average, deviation)
     
     for i in range(N):
-        agent = Agent(thresholds[i])
-        agents[i] = agent
+        agents.append(Agent(thresholds[i]))
         
     return agents
 
@@ -313,7 +317,7 @@ def create_agents(N = 100, average = 25, deviation = 10):
 Riot simulation
 """
 
-
+@njit(numba.int64[:](numba.float64[:]))
 def simulate_riot(thresholds):
     """
     Inputs:
@@ -323,14 +327,12 @@ def simulate_riot(thresholds):
     to the number (or percentage) of people rioting, otherwise, it doesn't.
     
     Outputs:
-        A "answer" np.array with two elements:
-            answer[0] := array with the riot's evolution over time
-            answer[1] := riot's final size
+        A "answer" np.array with the riot's evolution over time
     
     """
     
     riot_size = 0
-    progression = np.zeros(len(thresholds)+1)    # array that stores the riot's evolution over time
+    progression = np.zeros(len(thresholds)+1, dtype = np.int64)    # array that stores the riot's evolution over time
     aux = 0
     count = 0
     
@@ -345,7 +347,8 @@ def simulate_riot(thresholds):
         riot_size = aux
         aux = 0
         
-    return [progression[0:count], riot_size]
+    return progression[0:count]
+
 
 
 ######################################################################################################################################################################################
@@ -610,7 +613,7 @@ def simulate_riot_sectors_migration_gregarious(system, steps = 50, start = 0):
     for i in range(1,steps+1):
         system.update_wishes_reservoir()                                             # check reservoir Agents (enter riot)
         if i >= start:
-            system.update_wishes_sectors_migration_gregarious() # check sectors Agents (migrate to other sector)
+            system.update_wishes_sectors_migration_gregarious(migration_probability) # check sectors Agents (migrate to other sector)
         system.update_reservoir()                                                    # move Agents from reservoir
         system.update_sectors()                                                      # move Agents from sectors
            
@@ -647,7 +650,7 @@ def simulate_riot_sectors_migration_gregarious_exit(system, steps = 50, start = 
         system.update_wishes_reservoir()                                             # check reservoir Agents (enter riot)
         system.update_wishes_sectors_exit()                                          # check sectors Agents (leave riot)
         if i >= start:
-            system.update_wishes_sectors_migration_gregarious() # check sectors Agents (migrate to other sector)
+            system.update_wishes_sectors_migration_gregarious(migration_probability) # check sectors Agents (migrate to other sector)
         system.update_reservoir()                                                    # move Agents from reservoir
         system.update_sectors()                                                      # move Agents from sectors
            
