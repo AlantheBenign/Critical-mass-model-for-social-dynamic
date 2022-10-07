@@ -317,7 +317,7 @@ def create_agents(N = 100, average = 25, deviation = 10):
 Riot simulation
 """
 
-@njit(numba.int64[:](numba.float64[:]))
+@njit
 def simulate_riot(thresholds):
     """
     Inputs:
@@ -347,14 +347,15 @@ def simulate_riot(thresholds):
         riot_size = aux
         aux = 0
         
-    return progression[0:count]
+    return progression[0:count]  # trocar esse count pelo i (dá na mesma(?))
 
 
 
 ######################################################################################################################################################################################
 
 
-def simulate_riot_stochastic(agents, steps = 100):
+@njit
+def simulate_riot_stochastic_jit(agents, steps = 100):
     """
     Inputs:
         agents := Agents array
@@ -365,9 +366,7 @@ def simulate_riot_stochastic(agents, steps = 100):
     of people rioting.
     
     Outputs:
-        A "answer" np.array with two elements:
-            answer[0] := array with the riot's evolution over time
-            answer[1] := riot's final size
+         A "answer" np.array with the riot's evolution over time
     
     """
     
@@ -380,12 +379,12 @@ def simulate_riot_stochastic(agents, steps = 100):
             
         progression[i] = riot_size
         
-    return [progression, riot_size]
+    return progression
 
 
 ######################################################################################################################################################################################
 
-
+@njit
 def simulate_riot_stochastic_2(agents, steps = 100):
     """
     Inputs:
@@ -397,28 +396,27 @@ def simulate_riot_stochastic_2(agents, steps = 100):
     of people rioting. But if, in a time step, nothing changes the simulation stops.
     
     Outputs:
-        A "answer" np.array with two elements:
-            answer[0] := array with the riot's evolution over time
-            answer[1] := riot's final size
+        A "answer" np.array with the riot's evolution over time
     
     """
     
     riot_size = 0
-    progression = np.zeros(steps+1)               # array that stores the riot's evolution over time
+    progression = np.zeros(steps+1)              # array that stores the riot's evolution over time
     aux = 0
     
     for i in range(1,steps+1):
         for agent in agents:
             aux += agent.update_state(riot_size)
-            
+        
+        
         if aux == 0:
             break
             
-        riot_size += aux
+        riot_size += aux            
         progression[i] = riot_size
         aux = 0
         
-    return [progression[0:i], riot_size]
+    return progression[:i]
 
 
 ######################################################################################################################################################################################
