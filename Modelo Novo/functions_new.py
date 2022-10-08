@@ -1,11 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import random as rd
-from numba import jit
-
-"""
-TROCAR TODOS OS ARRAYS COMO ARRAYS DE TAMANHOS FIXOS, ISTO É, PREVIAMENTE ALOCADOS
-"""
 
 ######################################################################################################################################################################################
 
@@ -274,7 +269,7 @@ def create_thresholds(N = 100, average = 25, deviation = 10):
 
         thresholds[i] = threshold
         
-    thresholds = sorted(thresholds) #sorts the array
+    #thresholds = sorted(thresholds) #sorts the array
     
     return thresholds
 
@@ -345,7 +340,7 @@ def simulate_riot(thresholds):
         riot_size = aux
         aux = 0
         
-    return [progression[0:count], riot_size]
+    return progression[0:count]
 
 
 ######################################################################################################################################################################################
@@ -377,7 +372,7 @@ def simulate_riot_stochastic(agents, steps = 100):
             
         progression[i] = riot_size
         
-    return [progression, riot_size]
+    return progression
 
 
 ######################################################################################################################################################################################
@@ -415,7 +410,7 @@ def simulate_riot_stochastic_2(agents, steps = 100):
         progression[i] = riot_size
         aux = 0
         
-    return [progression[0:i], riot_size]
+    return progression[0:i]
 
 
 ######################################################################################################################################################################################
@@ -447,7 +442,7 @@ def simulate_riot_stochastic_exit(agents, steps = 100):
 
         progression[i] = riot_size
         
-    return [progression, riot_size]
+    return progression
 
 
 ######################################################################################################################################################################################

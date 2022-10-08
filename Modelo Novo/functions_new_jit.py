@@ -251,7 +251,7 @@ class Agent:
 Generates an sample of thresholds according with a normal distribution of given average and standard deviation
 """
 
-@njit(numba.float64[:](numba.int64,numba.int64,numba.int64))
+@njit
 def create_thresholds(N = 100, average = 25, deviation = 10):
     """
     Inputs:
@@ -286,7 +286,7 @@ def create_thresholds(N = 100, average = 25, deviation = 10):
 
 ######################################################################################################################################################################################
 
-@njit((numba.int64,numba.int64,numba.int64))
+@njit
 def create_agents(N = 100, average = 25, deviation = 10):
     """
     Inputs:
@@ -355,7 +355,7 @@ def simulate_riot(thresholds):
 
 
 @njit
-def simulate_riot_stochastic_jit(agents, steps = 100):
+def simulate_riot_stochastic(agents, steps = 100):
     """
     Inputs:
         agents := Agents array
@@ -421,7 +421,7 @@ def simulate_riot_stochastic_2(agents, steps = 100):
 
 ######################################################################################################################################################################################
 
-
+@njit
 def simulate_riot_stochastic_exit(agents, steps = 100):
     """
     Inputs:
@@ -433,9 +433,7 @@ def simulate_riot_stochastic_exit(agents, steps = 100):
     to exit the riot according to a logistic function.
     
     Outputs:
-        A "answer" np.array with two elements:
-            answer[0] := array with the riot's evolution over time
-            answer[1] := riot's final size
+        A np.array with the sorted thresholds values
     
     """
     
@@ -448,7 +446,7 @@ def simulate_riot_stochastic_exit(agents, steps = 100):
 
         progression[i] = riot_size
         
-    return [progression, riot_size]
+    return progression
 
 
 ######################################################################################################################################################################################
