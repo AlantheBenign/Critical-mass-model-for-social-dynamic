@@ -8,19 +8,98 @@ import random as rd
 ######################################################################################################################################################################################
 
 """
+This class is used to store an agent's data. 
+
+Every agent has a threshold and a state value, if the state value is 1 the agent is part of the riot, for exemple.
+We are using the stochastic method (Model without sectors).
+
+Using the sectors model, every Agent has a wish value, that stores the place that the Agent wants to go in the next time step,
+and a sector value, that stores the place that the Agent currently is.
+
+agent.sector == -1: it is in the reservoir; agent.sector == 0: it is in the sector_0; agent.sector == 1: it is in the sector_1. 
+"""
+
+spec2 = [
+    ('threshold', numba.int64),               
+    ('wish', numba.int64),
+    ('sector', numba.int64),
+    ('state', numba.int64),
+]
+
+@jitclass(spec2)
+class Agent():
+    
+    def __init__(self, threshold):
+        self.threshold = threshold
+        self.wish = -1
+        self.sector = -1
+        self.state = 0
+    
+    
+    def threshold_model(self, percentage):
+        m = 0.2                                                                # if m -> inf, the model approaches the Granovetter's binary model of thresholds.
+        probability = 1 / (1 + np.exp( m * (self.threshold - percentage) ) )   # stochastic model of thresholds [0 <= percentage <= 100]
+        return probability
+    
+        
+    # updates the state of an agent according with it's threshold, returns 1 if the agent enters the riot, for exemple, and returns 0 if nothing changes.     
+    def update_state(self, percentage):              
+        rnd = rd.random()
+        if self.state == 0:
+            if rnd <= self.threshold_model(percentage):
+                self.state = 1
+                return 1
+            else:
+                return 0
+        else:
+            return 0
+
+        
+    # updates the state of an agent according with it's threshold, returns 1 if the agent enters the riot, returns 0 if nothing chances and returns -1 if the agent exits the riot.
+    def update_state_exit(self, percentage):  
+        rnd = rd.random()
+        if self.state == 0:
+            if rnd <= self.threshold_model(percentage):
+                self.state = 1
+                return 1
+            else:
+                return 0
+        else:
+            if rnd > self.threshold_model(percentage):
+                self.state = 0
+                return -1
+            else:
+                return 0
+            
+
+######################################################################################################################################################################################            
+"""
 This class is used to create the simulation enviroment. 
 
 """
+lista = numba.typed.List()
+lista.append(Agent(10))
+lista.clear()
 
+spec1 = [
+    ('reservoir', numba.typeof(lista)),               
+    ('sector0', numba.typeof(lista)),
+    ('sector0_size', numba.int64),
+    ('sector1', numba.typeof(lista)),
+    ('sector1_size', numba.int64),
+]
+
+@jitclass(spec1)
 class System:
-    
     
     # creates a system to be simulated. With one reservoir of Agents, and two riot sectors
     def __init__(self, agents, sector0_size, sector1_size):
         self.reservoir = agents
-        self.sector0 = np.empty(sector0_size)
+        self.sector0 = numba.typed.List([Agent(1)])
+        self.sector0.clear()
         self.sector0_size = sector0_size
-        self.sector1 = np.empty(sector1_size)
+        self.sector1 = numba.typed.List([Agent(1)])
+        self.sector1.clear()
         self.sector1_size = sector1_size
      
     
@@ -28,13 +107,13 @@ class System:
     def migrate(self, sector, i):
         if sector == 0:
             agent = self.sector0[i]
-            self.sector0 = np.delete(self.sector0, i)
-            self.sector1 = np.append(self.sector1, agent)
+            self.sector0.pop(i)
+            self.sector1.append(agent)
             
         else:
             agent = self.sector1[i]
-            self.sector1 = np.delete(self.sector1, i)
-            self.sector0 = np.append(self.sector0, agent)
+            self.sector1.pop(i)
+            self.sector0.append(agent)
      
     
     # checks which Agent, in the reservoir, wants to riot according to it's threshold. It can go in sector 0 or 1.         
@@ -99,8 +178,8 @@ class System:
                 
     # checks which Agent, on both sectors, wants to migrate to other sector (gregarious model)             
     def update_wishes_sectors_migration_gregarious(self):
-        m = 3*10e-5
-        dif = len(system.sector1) - len(system.sector0)
+        m = 1e-3
+        dif = len(self.sector1) - len(self.sector0)
         probability = 1 - np.exp(-m * dif)
         
         for i in range(len(self.sector0)):
@@ -108,7 +187,7 @@ class System:
             if dif > 0 and rnd <= probability:
                 self.sector0[i].wish = 1
                 
-        dif = len(system.sector0) - len(system.sector1)
+        dif = len(self.sector0) - len(self.sector1)
         probability = 1 - np.exp(-m * dif)
         
         for i in range(len(self.sector1)):
@@ -123,14 +202,14 @@ class System:
         while i < len(self.reservoir):
             if self.reservoir[i].wish == 0 and len(self.sector0) < self.sector0_size:
                 agent = self.reservoir[i]
-                self.reservoir = np.delete(self.reservoir, i)
-                self.sector0 = np.append(self.sector0, agent)
+                self.reservoir.pop(i)
+                self.sector0.append(agent)
                 agent.sector = agent.wish
                 i -= 1
             elif self.reservoir[i].wish == 1 and len(self.sector1) < self.sector1_size:
                 agent = self.reservoir[i]
-                self.reservoir = np.delete(self.reservoir, i)
-                self.sector1 = np.append(self.sector1, agent)
+                self.reservoir.pop(i)
+                self.sector1.append(agent)
                 agent.sector = agent.wish
                 i -= 1
             else:
@@ -144,14 +223,14 @@ class System:
         while i < len(self.sector0):
             if self.sector0[i].wish == -1:
                 agent = self.sector0[i]
-                self.sector0 = np.delete(self.sector0, i)
-                self.reservoir = np.append(self.reservoir, agent)
+                self.sector0.pop(i)
+                self.reservoir.append(agent)
                 agent.sector = agent.wish
                 i -= 1
             elif self.sector0[i].wish == 1 and len(self.sector1) < self.sector1_size:
                 agent = self.sector0[i]
-                self.sector0 = np.delete(self.sector0, i)
-                self.sector1 = np.append(self.sector1, agent)
+                self.sector0.pop(i)
+                self.sector1.append(agent)
                 agent.sector = agent.wish
                 i -= 1
             else:
@@ -162,14 +241,14 @@ class System:
         while i < len(self.sector1):
             if self.sector1[i].wish == -1:
                 agent = self.sector1[i]
-                self.sector1 = np.delete(self.sector1, i)
-                self.reservoir = np.append(self.reservoir, agent)
+                self.sector1.pop(i)
+                self.reservoir.append(agent)
                 agent.sector = agent.wish
                 i -= 1
             elif self.sector1[i].wish == 0 and len(self.sector0) < self.sector0_size:
                 agent = self.sector1[i]
-                self.sector0 = np.delete(self.sector1, i)
-                self.sector1 = np.append(self.sector0, agent)
+                self.sector1.pop(i)
+                self.sector0.append(agent)
                 agent.sector = agent.wish
                 i -= 1
             else:
@@ -177,74 +256,6 @@ class System:
             i += 1
                 
             
-######################################################################################################################################################################################
-
-"""
-This class is used to store an agent's data. 
-
-Every agent has a threshold and a state value, if the state value is 1 the agent is part of the riot, for exemple.
-We are using the stochastic method (Model without sectors).
-
-Using the sectors model, every Agent has a wish value, that stores the place that the Agent wants to go in the next time step,
-and a sector value, that stores the place that the Agent currently is.
-
-agent.sector == -1: it is in the reservoir; agent.sector == 0: it is in the sector_0; agent.sector == 1: it is in the sector_1. 
-"""
-
-spec = [
-    ('threshold', numba.int8),               
-    ('wish', numba.int8),
-    ('sector', numba.int8),
-    ('state', numba.int8),
-]
-
-@jitclass(spec)
-class Agent:
-    
-    
-    def __init__(self, threshold):
-        self.threshold = threshold
-        self.wish = -1
-        self.sector = -1
-        self.state = 0
-    
-    
-    def threshold_model(self, percentage):
-        m = 0.2                                                                # if m -> inf, the model approaches the Granovetter's binary model of thresholds.
-        probability = 1 / (1 + np.exp( m * (self.threshold - percentage) ) )   # stochastic model of thresholds [0 <= percentage <= 100]
-        return probability
-    
-        
-    # updates the state of an agent according with it's threshold, returns 1 if the agent enters the riot, for exemple, and returns 0 if nothing changes.     
-    def update_state(self, percentage):              
-        rnd = rd.random()
-        if self.state == 0:
-            if rnd <= self.threshold_model(percentage):
-                self.state = 1
-                return 1
-            else:
-                return 0
-        else:
-            return 0
-
-        
-    # updates the state of an agent according with it's threshold, returns 1 if the agent enters the riot, returns 0 if nothing chances and returns -1 if the agent exits the riot.
-    def update_state_exit(self, percentage):  
-        rnd = rd.random()
-        if self.state == 0:
-            if rnd <= self.threshold_model(percentage):
-                self.state = 1
-                return 1
-            else:
-                return 0
-        else:
-            if rnd > self.threshold_model(percentage):
-                self.state = 0
-                return -1
-            else:
-                return 0
-            
-
 ######################################################################################################################################################################################
 
 """
@@ -451,7 +462,7 @@ def simulate_riot_stochastic_exit(agents, steps = 100):
 
 ######################################################################################################################################################################################
 
-
+@numba.njit
 def simulate_riot_sectors(system, steps = 50):
     """
     Inputs:
@@ -468,7 +479,7 @@ def simulate_riot_sectors(system, steps = 50):
          
     """
 
-    progression = np.zeros((2,steps+1))              # array that stores the riot's evolution over time
+    progression = np.zeros((2,steps+1), dtype = np.int64)              # array that stores the riot's evolution over time
     
     for i in range(1,steps+1):
         system.update_wishes_reservoir()             # check reservoir Agents (enter riot)
@@ -482,7 +493,7 @@ def simulate_riot_sectors(system, steps = 50):
 
 ######################################################################################################################################################################################
 
-
+@numba.njit
 def simulate_riot_sectors_exit(system, steps = 50):
     """
     Inputs:
@@ -515,7 +526,7 @@ def simulate_riot_sectors_exit(system, steps = 50):
 
 ######################################################################################################################################################################################
 
-
+@numba.njit
 def simulate_riot_sectors_migration(system, steps = 50, migration_probability = 0.01):
     """
     Inputs:
@@ -548,7 +559,7 @@ def simulate_riot_sectors_migration(system, steps = 50, migration_probability = 
 
 ######################################################################################################################################################################################
 
-
+@numba.njit
 def simulate_riot_sectors_migration_exit(system, steps = 50, migration_probability = 0.01, start = 0):
     """
     Inputs:
@@ -585,7 +596,7 @@ def simulate_riot_sectors_migration_exit(system, steps = 50, migration_probabili
 
 ######################################################################################################################################################################################
 
-
+@numba.njit
 def simulate_riot_sectors_migration_gregarious(system, steps = 50, start = 0):
     """
     Inputs:
@@ -609,7 +620,7 @@ def simulate_riot_sectors_migration_gregarious(system, steps = 50, start = 0):
     for i in range(1,steps+1):
         system.update_wishes_reservoir()                                             # check reservoir Agents (enter riot)
         if i >= start:
-            system.update_wishes_sectors_migration_gregarious(migration_probability) # check sectors Agents (migrate to other sector)
+            system.update_wishes_sectors_migration_gregarious() # check sectors Agents (migrate to other sector)
         system.update_reservoir()                                                    # move Agents from reservoir
         system.update_sectors()                                                      # move Agents from sectors
            
@@ -621,7 +632,7 @@ def simulate_riot_sectors_migration_gregarious(system, steps = 50, start = 0):
 
 ######################################################################################################################################################################################
 
-
+@numba.njit
 def simulate_riot_sectors_migration_gregarious_exit(system, steps = 50, start = 0):
     """
     Inputs:
@@ -646,7 +657,7 @@ def simulate_riot_sectors_migration_gregarious_exit(system, steps = 50, start = 
         system.update_wishes_reservoir()                                             # check reservoir Agents (enter riot)
         system.update_wishes_sectors_exit()                                          # check sectors Agents (leave riot)
         if i >= start:
-            system.update_wishes_sectors_migration_gregarious(migration_probability) # check sectors Agents (migrate to other sector)
+            system.update_wishes_sectors_migration_gregarious() # check sectors Agents (migrate to other sector)
         system.update_reservoir()                                                    # move Agents from reservoir
         system.update_sectors()                                                      # move Agents from sectors
            
