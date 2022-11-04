@@ -176,9 +176,17 @@ class System:
                 self.sector1[i].wish = 0
                 
                 
+    # checks which Agent, on both sectors, wants to migrate to other sector (random and unidirectional model)            
+    def update_wishes_sectors_migration_random_unidirectional(self, migration_probability):
+        for i in range(len(self.sector0)):
+            rnd = rd.random()
+            if rnd <= migration_probability:
+                self.sector0[i].wish = 1
+                
+                
     # checks which Agent, on both sectors, wants to migrate to other sector (gregarious model)             
     def update_wishes_sectors_migration_gregarious(self):
-        m = 1e-3
+        m = 10
         dif = len(self.sector1) - len(self.sector0)
         probability = 1 - np.exp(-m * dif)
         
@@ -565,6 +573,7 @@ def simulate_riot_sectors_migration_exit(system, steps = 50, migration_probabili
     Inputs:
         system := System class variable that contains all Agents
         steps := number of the simulation's time steps
+        migration_probability := the probability of an Agent migrate in a time step
         start := the time step value when the Agents can migrate between sectors
     
     This functions simulates a set of 2 simultaneous riots that occur in 2 distinct sectors using the stochastic threshold model. There are a set of Agents in a reservoir that can
@@ -660,6 +669,44 @@ def simulate_riot_sectors_migration_gregarious_exit(system, steps = 50, start = 
             system.update_wishes_sectors_migration_gregarious() # check sectors Agents (migrate to other sector)
         system.update_reservoir()                                                    # move Agents from reservoir
         system.update_sectors()                                                      # move Agents from sectors
+           
+        progression[0][i] = len(system.sector0)
+        progression[1][i] = len(system.sector1)
+            
+    return progression
+
+
+######################################################################################################################################################################################
+
+@numba.njit
+def simulate_riot_sectors_migration_exit_unidirectional(system, steps = 50, migration_probability = 0.01, start = 0):
+    """
+    Inputs:
+        system := System class variable that contains all Agents
+        steps := number of the simulation's time steps
+        migration_probability := the probability of an Agent migrate in a time step
+        start := the time step value when the Agents can migrate between sectors
+    
+    This functions simulates a set of 2 simultaneous riots that occur in 2 distinct sectors using the stochastic threshold model. There are a set of Agents in a reservoir that can
+    enter sectors 0 or 1 to riot. Each sector has a size, so the thrsehold of each Agent is based on the number of Agents rioting in a sector compared with the number of Agents that
+    can be in that sector. In this function, the Agents in a section can migrate from sector 0 to sector 1 with probability equals to "migration_probability" if "i", the current time step is
+    greater or equal to "start". Moreover, the Agents can exit the riot and return to the reservoir according to a logistic function.
+     
+    
+    Outpurs:
+         A np.array "progression" that contains the time evolution of each riots over time.
+        
+    """
+    
+    progression = np.zeros((2,steps+1))              # array that stores the riot's evolution over time
+    
+    for i in range(1,steps+1):
+        system.update_wishes_reservoir()                                                        # check reservoir Agents (enter riot)
+        system.update_wishes_sectors_exit()                                                     # check sectors Agents (leave riot)
+        if i >= start:
+            system.update_wishes_sectors_migration_random_unidirectional(migration_probability) # check sector0 Agents (migrate to other sector)
+        system.update_reservoir()                                                               # move Agents from reservoir
+        system.update_sectors()                                                                 # move Agents from sectors
            
         progression[0][i] = len(system.sector0)
         progression[1][i] = len(system.sector1)
