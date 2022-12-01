@@ -369,7 +369,6 @@ def simulate_riot(thresholds):
     return progression[0:count]  # trocar esse count pelo i (dá na mesma(?))
 
 
-
 ######################################################################################################################################################################################
 
 
@@ -402,6 +401,7 @@ def simulate_riot_stochastic(agents, steps = 100):
 
 
 ######################################################################################################################################################################################
+
 
 @njit
 def simulate_riot_stochastic_2(agents, steps = 100):
@@ -440,6 +440,7 @@ def simulate_riot_stochastic_2(agents, steps = 100):
 
 ######################################################################################################################################################################################
 
+
 @njit
 def simulate_riot_stochastic_exit(agents, steps = 100):
     """
@@ -461,11 +462,45 @@ def simulate_riot_stochastic_exit(agents, steps = 100):
     
     for i in range(1,steps+1):
         for agent in agents:
-            riot_size += agent.update_state_exit(riot_size)
+            riot_size += agent.update_state_exit(riot_size/len(agents) * 100)
 
         progression[i] = riot_size
         
     return progression
+
+
+######################################################################################################################################################################################
+
+
+@njit
+def simulate_riot_stochastic_exit_intermediary(agents, steps = 100):
+    """
+    Inputs:
+        agents := Agents array
+        steps := number of the simulation's time steps
+    
+    This function calculates the size of an riot according with the stochastic threshold model: The Agent has a higher probability of entering the riot if its threshold value 
+    is less or equal to the number (or percentage) of people rioting, and has a low probability of entering the riot if its threshold value is less than the number (or percentage)
+    of people rioting.
+    
+    Outputs:
+         A "answer" np.array with the riot's evolution over time
+    
+    """
+    
+    riot_size = 0
+    states = np.full((steps+1,len(agents)),-1)
+    progression = np.zeros(steps+1)              # array that stores the riot's evolution over time
+    
+    for i in range(1,steps+1):
+        for j in range(len(agents)):
+            riot_size += agents[j].update_state_exit(riot_size/len(agents) * 100)
+            if agents[j].state == 1:
+                states[i][j] = agents[j].threshold 
+            
+        progression[i] = riot_size
+        
+    return progression, states
 
 
 ######################################################################################################################################################################################
@@ -501,6 +536,7 @@ def simulate_riot_sectors(system, steps = 50):
 
 ######################################################################################################################################################################################
 
+
 @numba.njit
 def simulate_riot_sectors_exit(system, steps = 50):
     """
@@ -534,6 +570,7 @@ def simulate_riot_sectors_exit(system, steps = 50):
 
 ######################################################################################################################################################################################
 
+
 @numba.njit
 def simulate_riot_sectors_migration(system, steps = 50, migration_probability = 0.01):
     """
@@ -566,6 +603,7 @@ def simulate_riot_sectors_migration(system, steps = 50, migration_probability = 
 
 
 ######################################################################################################################################################################################
+
 
 @numba.njit
 def simulate_riot_sectors_migration_exit(system, steps = 50, migration_probability = 0.01, start = 0):
@@ -605,6 +643,7 @@ def simulate_riot_sectors_migration_exit(system, steps = 50, migration_probabili
 
 ######################################################################################################################################################################################
 
+
 @numba.njit
 def simulate_riot_sectors_migration_gregarious(system, steps = 50, start = 0):
     """
@@ -640,6 +679,7 @@ def simulate_riot_sectors_migration_gregarious(system, steps = 50, start = 0):
 
 
 ######################################################################################################################################################################################
+
 
 @numba.njit
 def simulate_riot_sectors_migration_gregarious_exit(system, steps = 50, start = 0):
@@ -677,6 +717,7 @@ def simulate_riot_sectors_migration_gregarious_exit(system, steps = 50, start = 
 
 
 ######################################################################################################################################################################################
+
 
 @numba.njit
 def simulate_riot_sectors_migration_exit_unidirectional(system, steps = 50, migration_probability = 0.01, start = 0):
