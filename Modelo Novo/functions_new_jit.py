@@ -24,6 +24,7 @@ spec2 = [
     ('wish', numba.int64),
     ('sector', numba.int64),
     ('state', numba.int64),
+    ('name', numba.int64),
 ]
 
 @jitclass(spec2)
@@ -34,6 +35,7 @@ class Agent():
         self.wish = -1
         self.sector = -1
         self.state = 0
+        self.name = -1
     
     
     def threshold_model(self, percentage):
@@ -101,7 +103,6 @@ class System:
         self.sector1 = numba.typed.List([Agent(1)])
         self.sector1.clear()
         self.sector1_size = sector1_size
-     
     
     # migrates an Agent "i" from the sector "sector"
     def migrate(self, sector, i):
@@ -279,7 +280,7 @@ def create_thresholds(N = 100, average = 25, deviation = 10):
           average := average value of the normal distribution
           deviation := standard deviation of the normal distribution
     
-    This function creates an array with N threshold values (0 <= x <= 100) according with a normal distribution with the given parameters
+    This function creates an array with N threshold values (0 <= x <= 100) according with a normal distribution with the given parameters.
           
     Outputs:      
         A np.array with the sorted thresholds values
@@ -313,7 +314,7 @@ def create_agents(N = 100, average = 25, deviation = 10):
         average := average value of the normal distribution
         deviation := standard deviation of the normal distribution
         
-        The function creates an array of Agents according with the normal distribution of threshold values
+        The function creates an array of Agents according with the normal distribution of threshold values.
         
     Outputs:
         agents := array with all Agents
@@ -326,6 +327,29 @@ def create_agents(N = 100, average = 25, deviation = 10):
     
     for i in range(N):
         agents.append(Agent(thresholds[i]))
+        
+    return agents
+
+
+######################################################################################################################################################################################
+
+@njit
+def name_agents(agents):
+    """
+    Inputs:
+        agents := Agents array
+        
+        The function names each Agent in the agents array.
+        
+    Outputs:
+        agents := array with all Agents
+    
+    """
+    
+    N = len(agents)
+    
+    for i in range(N):
+        agents[i].name = i
         
     return agents
 
@@ -504,6 +528,7 @@ def simulate_riot_stochastic_exit_intermediary(agents, steps = 100):
 
 
 ######################################################################################################################################################################################
+
 
 @numba.njit
 def simulate_riot_sectors(system, steps = 50):
