@@ -10,14 +10,17 @@ import random as rd
 """
 This class is used to store an agent's data. 
 
-Every agent has a threshold, a wish value (sector that it wants to go next time step), a sector value (sector that it currently is), a state value (if the agent is in a riot or not), a name value (used only for visualization in Unity).
-We are using the stochastic method.
+Every agent has a threshold and a state value, if the state value is 1 the agent is part of the riot, for exemple.
+We are using the stochastic method (Model without sectors).
+
+Using the sectors model, every Agent has a wish value, that stores the place that the Agent wants to go in the next time step,
+and a sector value, that stores the place that the Agent currently is.
 
 agent.sector == -1: it is in the reservoir; agent.sector == 0: it is in the sector_0; agent.sector == 1: it is in the sector_1. 
 """
 
 spec2 = [
-    ('threshold', numba.float64),               
+    ('threshold', numba.int64),               
     ('wish', numba.int64),
     ('sector', numba.int64),
     ('state', numba.int64),
@@ -34,17 +37,17 @@ class Agent():
         self.state = 0
         self.name = -1
     
-    """# Stochastic model 
-    def threshold_model(self, percentage):
-        m = 0.006                                                                # if m -> inf, the model approaches the Granovetter's binary model of thresholds.
-        probability = 1 / (1 + np.exp( m * (self.threshold - percentage) ) )   # stochastic model of thresholds [0 <= percentage <= 100]
+    def threshold_model_deterministic(self, percentage):
+        if (percentage < self.threshold):
+            probability = 0
+        else:
+            probability = 1
         return probability
-    """
     
-    # Linear approximation model
-    def threshold_model(self, percentage):
-        m = 0.02                                                                # if m -> inf, the model approaches the Granovetter's binary model of thresholds.
-        probability = 1/2 - m/4 * (self.threshold - percentage)   # stochastic model of thresholds [0 <= percentage <= 100]
+    
+    def threshold_model_stochastic(self, percentage, m):
+        # if m -> inf, the model approaches the Granovetter's binary model of thresholds.
+        probability = 1 / (1 + np.exp( m * (self.threshold - percentage) ) )   # stochastic model of thresholds [0 <= percentage <= 100]
         return probability
     
         
@@ -93,13 +96,15 @@ spec1 = [
     ('sector0_size', numba.int64),
     ('sector1', numba.typeof(lista)),
     ('sector1_size', numba.int64),
+    ('model_type', numba.int64),
+    ('beta_factor_stochastic', numba.float64),
 ]
 
 @jitclass(spec1)
 class System:
     
     # creates a system to be simulated. With one reservoir of Agents, and two riot sectors
-    def __init__(self, agents, sector0_size, sector1_size):
+    def __init__(self, agents, sector0_size, sector1_size, model_type, beta):
         self.reservoir = agents
         self.sector0 = numba.typed.List([Agent(1)])
         self.sector0.clear()
@@ -107,8 +112,11 @@ class System:
         self.sector1 = numba.typed.List([Agent(1)])
         self.sector1.clear()
         self.sector1_size = sector1_size
+        # model_type: 0 => deterministic, 1 => stochastic
+        self.model_type = model_type
+        self.beta_factor_stochastic = beta
     
-    """# migrates an Agent "i" from the sector "sector"
+    # migrates an Agent "i" from the sector "sector"
     def migrate(self, sector, i):
         if sector == 0:
             agent = self.sector0[i]
@@ -119,7 +127,7 @@ class System:
             agent = self.sector1[i]
             self.sector1.pop(i)
             self.sector0.append(agent)
-    """ 
+     
     
     # checks which Agent, in the reservoir, wants to riot according to it's threshold. It can go in sector 0 or 1.         
     def update_wishes_reservoir(self):
@@ -129,43 +137,72 @@ class System:
             if num == 0:
                 if len(self.sector0) < self.sector0_size:
                     percentage = len(self.sector0)/self.sector0_size * 100
-                    if rnd <= self.reservoir[i].threshold_model(percentage):
-                        self.reservoir[i].wish = 0
-                        continue
+                    
+                    if (self.model_type == 0):
+                        if(self.reservoir[i].threshold_model_deterministic(percentage)):
+                            self.reservoir[i].wish = 0
+                            continue
+                            
+                    elif (self.model_type == 1):
+                        if rnd <= self.reservoir[i].threshold_model_stochastic(percentage, self.beta_factor_stochastic):
+                            self.reservoir[i].wish = 0
+                            continue
                 
                 if len(self.sector1) < self.sector1_size:                    
                     percentage = len(self.sector1)/self.sector1_size * 100
-                    if rnd <= self.reservoir[i].threshold_model(percentage):
-                        self.reservoir[i].wish = 1
-                        continue
+                    
+                    if (self.model_type == 0):
+                        if(self.reservoir[i].threshold_model_deterministic(percentage)):
+                            self.reservoir[i].wish = 1
+                            continue
+                        
+                    elif (self.model_type == 1):
+                        if rnd <= self.reservoir[i].threshold_model_stochastic(percentage, self.beta_factor_stochastic):
+                            self.reservoir[i].wish = 1
+                            continue
                     
             else:
                 if len(self.sector1) < self.sector1_size:                    
                     percentage = len(self.sector1)/self.sector1_size * 100
-                    if rnd <= self.reservoir[i].threshold_model(percentage):
-                        self.reservoir[i].wish = 1
-                        continue
+                    
+                    if (self.model_type == 0):
+                        if(self.reservoir[i].threshold_model_deterministic(percentage)):
+                            self.reservoir[i].wish = 1
+                            continue
+                        
+                    elif (self.model_type == 1):
+                        if rnd <= self.reservoir[i].threshold_model_stochastic(percentage, self.beta_factor_stochastic):
+                            self.reservoir[i].wish = 1
+                            continue
                     
                 if len(self.sector0) < self.sector0_size:
                     percentage = len(self.sector0)/self.sector0_size * 100
-                    if rnd <= self.reservoir[i].threshold_model(percentage):
-                        self.reservoir[i].wish = 0
-                        continue
+                    
+                    if (self.model_type == 0):
+                        if(self.reservoir[i].threshold_model_deterministic(percentage)):
+                            self.reservoir[i].wish = 0
+                            continue
+                            
+                    elif (self.model_type == 1):
+                        if rnd <= self.reservoir[i].threshold_model_stochastic(percentage, self.beta_factor_stochastic):
+                            self.reservoir[i].wish = 0
+                            continue
     
     
     # checks which Agent, in both sectros, wants to exit the riot.              
     def update_wishes_sectors_exit(self):
-        for i in range(len(self.sector0)):
-            rnd = rd.random()
-            percentage = len(self.sector0)/self.sector0_size * 100
-            if rnd > self.sector0[i].threshold_model(percentage):
-                self.sector0[i].wish = -1
-                
-        for i in range(len(self.sector1)):
-            rnd = rd.random()
-            percentage = len(self.sector1)/self.sector1_size * 100
-            if rnd > self.sector1[i].threshold_model(percentage):
-                self.sector1[i].wish = -1
+        if(self.model_type == 1):
+            for i in range(len(self.sector0)):
+                rnd = rd.random()
+                percentage = len(self.sector0)/self.sector0_size * 100
+                if rnd > self.sector0[i].threshold_model_stochastic(percentage, self.beta_factor_stochastic):
+                    self.sector0[i].wish = -1
+
+            for i in range(len(self.sector1)):
+                rnd = rd.random()
+                percentage = len(self.sector1)/self.sector1_size * 100
+                if rnd > self.sector1[i].threshold_model_stochastic(percentage, self.beta_factor_stochastic):
+                    self.sector1[i].wish = -1
      
     
     # checks which Agent, on both sectors, wants to migrate to other sector (random model)
@@ -181,7 +218,7 @@ class System:
                 self.sector1[i].wish = 0
                 
                 
-    # checks which Agent, on both sectors, wants to migrate to other sector (random and unidirectional model)
+    # checks which Agent, on both sectors, wants to migrate to other sector (random and unidirectional model)            
     def update_wishes_sectors_migration_random_unidirectional(self, migration_probability):
         for i in range(len(self.sector0)):
             rnd = rd.random()
@@ -308,41 +345,7 @@ def create_thresholds(N = 100, average = 25, deviation = 10):
     
     return thresholds
 
-
 ######################################################################################################################################################################################
-
-
-@njit
-def create_thresholds_not_truncated(N = 100, average = 25, deviation = 10):
-    """
-    Inputs:
-        Sample parameters:
-          N := total number of agents
-          average := average value of the normal distribution
-          deviation := standard deviation of the normal distribution
-    
-    This function creates an array with N threshold values according with a normal distribution with the given parameters.
-          
-    Outputs:      
-        A np.array with the sorted thresholds values
-    
-    """
-    
-    thresholds = np.zeros(N)
-    
-    # generating the values
-    for i in range(N):
-        threshold = rd.gauss(average, deviation)     # generates a random value according with a normal distribution
-
-        thresholds[i] = threshold
-        
-    #thresholds = sorted(thresholds) #sorts the array
-    
-    return thresholds
-
-
-######################################################################################################################################################################################
-
 
 @njit
 def create_agents(N = 100, average = 25, deviation = 10):
@@ -370,35 +373,6 @@ def create_agents(N = 100, average = 25, deviation = 10):
 
 
 ######################################################################################################################################################################################
-
-
-@njit
-def create_agents_not_truncated(N = 100, average = 25, deviation = 10):
-    """
-    Inputs:
-        N := total number of agents
-        average := average value of the normal distribution
-        deviation := standard deviation of the normal distribution
-        
-        The function creates an array of Agents according with the normal distribution of not truncated threshold values.
-        
-    Outputs:
-        agents := array with all Agents
-    
-    """
-    
-    agents = numba.typed.List()
-    
-    thresholds = create_thresholds_not_truncated(N, average, deviation)
-    
-    for i in range(N):
-        agents.append(Agent(thresholds[i]))
-        
-    return agents
-
-
-######################################################################################################################################################################################
-
 
 @njit
 def name_agents(agents):
@@ -437,7 +411,7 @@ def simulate_riot(thresholds):
     to the number (or percentage) of people rioting, otherwise, it doesn't.
     
     Outputs:
-        A "progression" np.array with the riot's evolution over time
+        A "answer" np.array with the riot's evolution over time
     
     """
     
@@ -475,7 +449,7 @@ def simulate_riot_stochastic(agents, steps = 100):
     of people rioting.
     
     Outputs:
-         A "progression" np.array with the riot's evolution over time
+         A "answer" np.array with the riot's evolution over time
     
     """
     
@@ -483,9 +457,8 @@ def simulate_riot_stochastic(agents, steps = 100):
     progression = np.zeros(steps+1)              # array that stores the riot's evolution over time
     
     for i in range(1,steps+1):
-        riot_now = riot_size
         for agent in agents:
-            riot_size += agent.update_state(riot_now/len(agents) * 100)
+            riot_size += agent.update_state(riot_size)
             
         progression[i] = riot_size
         
@@ -507,7 +480,7 @@ def simulate_riot_stochastic_2(agents, steps = 100):
     of people rioting. But if, in a time step, nothing changes the simulation stops.
     
     Outputs:
-        A "progression" np.array with the riot's evolution over time
+        A "answer" np.array with the riot's evolution over time
     
     """
     
@@ -517,7 +490,7 @@ def simulate_riot_stochastic_2(agents, steps = 100):
     
     for i in range(1,steps+1):
         for agent in agents:
-            aux += agent.update_state(riot_size/len(agents) * 100)
+            aux += agent.update_state(riot_size)
         
         
         if aux == 0:
@@ -545,7 +518,7 @@ def simulate_riot_stochastic_exit(agents, steps = 100):
     to exit the riot according to a logistic function.
     
     Outputs:
-        A "progression" np.array with the riot's evolution over time
+        A np.array with the sorted thresholds values
     
     """
     
@@ -553,9 +526,8 @@ def simulate_riot_stochastic_exit(agents, steps = 100):
     progression = np.zeros(steps+1)                                     # array that stores the riot's evolution over time
     
     for i in range(1,steps+1):
-        riot_now = riot_size
         for agent in agents:
-            riot_size += agent.update_state_exit(riot_now/len(agents) * 100)
+            riot_size += agent.update_state_exit(riot_size/len(agents) * 100)
 
         progression[i] = riot_size
         
@@ -577,23 +549,19 @@ def simulate_riot_stochastic_exit_intermediary(agents, steps = 100):
     of people rioting.
     
     Outputs:
-         A "progression" np.array with the riot's evolution over time
-         A "states" np.array that contains the agents's thresholds values that are in the riot over time.
+         A "answer" np.array with the riot's evolution over time
     
     """
     
     riot_size = 0
-    states = np.full((steps+1,len(agents)),-1.0)
+    states = np.full((steps+1,len(agents)),-1)
     progression = np.zeros(steps+1)              # array that stores the riot's evolution over time
     
     for i in range(1,steps+1):
-        riot_now = riot_size
         for j in range(len(agents)):
-            riot_size += agents[j].update_state_exit(riot_now/len(agents) * 100)
+            riot_size += agents[j].update_state_exit(riot_size/len(agents) * 100)
             if agents[j].state == 1:
-                states[i][j] = agents[j].threshold
-            else:
-                states[i][j] = -1
+                states[i][j] = agents[j].threshold 
             
         progression[i] = riot_size
         
@@ -601,9 +569,7 @@ def simulate_riot_stochastic_exit_intermediary(agents, steps = 100):
 
 
 ######################################################################################################################################################################################
-"""
-Riot with sectors simulation
-"""
+
 
 @numba.njit
 def simulate_riot_sectors(system, steps = 50):
@@ -666,48 +632,6 @@ def simulate_riot_sectors_exit(system, steps = 50):
         progression[1][i] = len(system.sector1)
             
     return progression
-
-
-######################################################################################################################################################################################
-
-
-@numba.njit
-def simulate_riot_sectors_exit_intermediary(system, steps = 50):
-    """
-    Inputs:
-        system := System class variable that contains all Agents
-        steps := number of the simulation's time steps
-    
-    This functions simulates a set of 2 simultaneous riots that occur in 2 distinct sectors using the stochastic threshold model. There are a set of Agents in a reservoir that can
-    enter sectors 0 or 1 to riot. Each sector has a size, so the thrsehold of each Agent is based on the number of Agents rioting in a sector compared with the number of Agents that
-    can be in that sector. In this function, the Agents can exit the riot and return to the reservoir according to a logistic function.
-     
-    
-    Outpurs:
-         A np.array "progression" that contains the time evolution of each riots over time.
-         A np.array "states" that contains the agents's thresholds values that are in each sector over time.
-         
-    """
-    
-    progression = np.zeros((2,steps+1))              # array that stores the riot's evolution over time
-    states = np.full((steps+1,2,len(system.reservoir)),-1000.0)   # array that stores the agents's thresholds values that are in each sector over time
-    
-    for i in range(1,steps+1):
-        system.update_wishes_reservoir()             # check reservoir Agents (enter riot)
-        system.update_wishes_sectors_exit()          # check sectors Agents (leave riot)
-        system.update_reservoir()                    # move Agents from reservoir
-        system.update_sectors()                      # move Agents from sectors
-           
-        progression[0][i] = len(system.sector0)
-        progression[1][i] = len(system.sector1)
-        
-        for j in range(len(system.sector0)):
-            states[i][0][j] = system.sector0[j].threshold
-        
-        for j in range(len(system.sector1)):
-            states[i][1][j] = system.sector1[j].threshold
-            
-    return progression, states
 
 
 ######################################################################################################################################################################################
