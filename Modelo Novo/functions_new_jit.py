@@ -34,14 +34,15 @@ class Agent():
         self.state = 0
         self.name = -1
     
-    """# Stochastic model 
+    # WARNING: GUARANTEE THAT THE VARIABLE "probability" CAN ONLY ASSUME VALUES FROM 0 TO 1. 
+    """# Stochastic model (0 <= probability <= 1 for all real m)
     def threshold_model(self, percentage):
         m = 0.006                                                                # if m -> inf, the model approaches the Granovetter's binary model of thresholds.
         probability = 1 / (1 + np.exp( m * (self.threshold - percentage) ) )   # stochastic model of thresholds [0 <= percentage <= 100]
         return probability
     """
     
-    # Linear approximation model
+    # Linear approximation model (0 <= probability <= 1 if 0 <= m <= 0.02)
     def threshold_model(self, percentage):
         m = 0.02                                                                # if m -> inf, the model approaches the Granovetter's binary model of thresholds.
         probability = 1/2 - m/4 * (self.threshold - percentage)   # stochastic model of thresholds [0 <= percentage <= 100]
@@ -153,7 +154,7 @@ class System:
                         continue
     
     
-    # checks which Agent, in both sectros, wants to exit the riot.              
+    # checks which Agent, in both sectors, wants to exit the riot.              
     def update_wishes_sectors_exit(self):
         for i in range(len(self.sector0)):
             rnd = rd.random()
@@ -287,7 +288,7 @@ def create_thresholds(N = 100, average = 25, deviation = 10):
     This function creates an array with N threshold values (0 <= x <= 100) according with a normal distribution with the given parameters.
           
     Outputs:      
-        A np.array with the sorted thresholds values
+        A np.array with the thresholds values
     
     """
     
@@ -324,7 +325,7 @@ def create_thresholds_not_truncated(N = 100, average = 25, deviation = 10):
     This function creates an array with N threshold values according with a normal distribution with the given parameters.
           
     Outputs:      
-        A np.array with the sorted thresholds values
+        A np.array with the thresholds values
     
     """
     
@@ -437,7 +438,7 @@ def simulate_riot(thresholds):
     to the number (or percentage) of people rioting, otherwise, it doesn't.
     
     Outputs:
-        A "progression" np.array with the riot's evolution over time
+        progression := np.array with the riot's evolution over time
     
     """
     
@@ -475,7 +476,7 @@ def simulate_riot_stochastic(agents, steps = 100):
     of people rioting.
     
     Outputs:
-         A "progression" np.array with the riot's evolution over time
+         progression := np.array with the riot's evolution over time
     
     """
     
@@ -507,7 +508,7 @@ def simulate_riot_stochastic_2(agents, steps = 100):
     of people rioting. But if, in a time step, nothing changes the simulation stops.
     
     Outputs:
-        A "progression" np.array with the riot's evolution over time
+        progression := np.array with the riot's evolution over time
     
     """
     
@@ -545,7 +546,7 @@ def simulate_riot_stochastic_exit(agents, steps = 100):
     to exit the riot according to a logistic function.
     
     Outputs:
-        A "progression" np.array with the riot's evolution over time
+        progression := np.array with the riot's evolution over time
     
     """
     
@@ -577,8 +578,8 @@ def simulate_riot_stochastic_exit_intermediary(agents, steps = 100):
     of people rioting.
     
     Outputs:
-         A "progression" np.array with the riot's evolution over time
-         A "states" np.array that contains the agents's thresholds values that are in the riot over time.
+         progression := np.array with the riot's evolution over time
+         states := np.array that contains the agents's thresholds values that are in the riot over time.
     
     """
     
@@ -618,7 +619,7 @@ def simulate_riot_sectors(system, steps = 50):
      
     
     Outpurs:
-         A np.array "progression" that contains the time evolution of each riots over time.
+         progression := np.array that contains the time evolution of each riots over time.
          
     """
 
@@ -650,7 +651,7 @@ def simulate_riot_sectors_exit(system, steps = 50):
      
     
     Outpurs:
-         A np.array "progression" that contains the time evolution of each riots over time.
+         progression := np.array that contains the time evolution of each riots over time.
          
     """
     
@@ -684,8 +685,8 @@ def simulate_riot_sectors_exit_intermediary(system, steps = 50):
      
     
     Outpurs:
-         A np.array "progression" that contains the time evolution of each riots over time.
-         A np.array "states" that contains the agents's thresholds values that are in each sector over time.
+         progression := np.array that contains the time evolution of each riots over time.
+         states := np.array that contains the agents's thresholds values that are in each sector over time.
          
     """
     
@@ -726,7 +727,7 @@ def simulate_riot_sectors_migration(system, steps = 50, migration_probability = 
      
     
     Outpurs:
-         A np.array "progression" that contains the time evolution of each riots over time.
+         progression := np.array that contains the time evolution of each riots over time.
          
     """
     
@@ -763,7 +764,7 @@ def simulate_riot_sectors_migration_exit(system, steps = 50, migration_probabili
      
     
     Outpurs:
-         A np.array "progression" that contains the time evolution of each riots over time.
+         progression := np.array that contains the time evolution of each riots over time.
         
     """
     
@@ -801,7 +802,7 @@ def simulate_riot_sectors_migration_gregarious(system, steps = 50, start = 0):
      
     
     Outpurs:
-         A np.array "progression" that contains the time evolution of each riots over time.
+         progression := np.array that contains the time evolution of each riots over time.
         
     """
     
@@ -838,7 +839,7 @@ def simulate_riot_sectors_migration_gregarious_exit(system, steps = 50, start = 
      
     
     Outpurs:
-         A np.array "progression" that contains the time evolution of each riots over time.
+         progression := np.array that contains the time evolution of each riots over time.
         
     """
     
@@ -877,7 +878,7 @@ def simulate_riot_sectors_migration_exit_unidirectional(system, steps = 50, migr
      
     
     Outpurs:
-         A np.array "progression" that contains the time evolution of each riots over time.
+         progression := np.array that contains the time evolution of each riots over time.
         
     """
     
