@@ -347,3 +347,34 @@ class HoshenKopelman():
             print('Run the algorithm first')    
 
 
+def generate_heatmap(data,title):
+    # Extrair chaves e valores do dicionário
+    keys = list(data.keys())
+    values = list(data.values())
+
+    # Obter valores únicos de agentDensity e residentRelativeDensity
+    agent_density_values = np.unique([key[0] for key in keys])
+    relative_density_values = np.unique([key[1] for key in keys])
+
+    # Criar matriz de zeros para armazenar os valores do heatmap
+    heatmap_data = np.zeros((len(relative_density_values), len(agent_density_values)))
+
+    # Preencher a matriz com os valores do dicionário
+    for i, agent_density in enumerate(agent_density_values):
+        for j, relative_density in enumerate(relative_density_values):
+            key = (agent_density, relative_density)
+            if key in data:
+                heatmap_data[j, i] = data[key]
+
+    # Criar o heatmap
+    plt.imshow(heatmap_data, cmap='viridis', extent=[0, 1,
+                                                    0, 0.9],
+               origin='lower', vmin=min(values), vmax=max(values))
+    
+    plt.colorbar(label=title)
+    plt.xlabel('Agent Density')
+    plt.ylabel('Relative Resident Density')
+    plt.title(title + ' Heatmap')
+    plt.show()
+
+
