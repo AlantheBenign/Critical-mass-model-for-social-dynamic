@@ -333,11 +333,15 @@ class HoshenKopelman():
             numClusters = len(clustersLabels)
             clustersSizes = dict()
 
+            clustersSizesAverage = 0
             for label in clustersLabels:
                 size = (self.labels == label).sum()
+                clustersSizesAverage += size
                 clustersSizes[label] = size
 
-            return numClusters, clustersSizes
+            clustersSizesAverage = float(clustersSizesAverage)/numClusters
+
+            return numClusters, clustersSizes, clustersSizesAverage
             
         else:
             print('Run the algorithm first')    
